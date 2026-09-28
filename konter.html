@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>G-Max-Konter – Dyna-Kompass</title>
+  <meta name="description" content="Die besten Konter und Team-Vorschläge gegen jeden Gigadynamax-Boss in Pokémon GO.">
+  <meta name="theme-color" content="#0b0d18">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="data/pokemon-data.js" defer></script>
+  <script src="js/shared.js" defer></script>
+  <script src="js/counters.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#counters">Zu den Kontern springen</a>
+
+  <header class="hero hero--compact">
+    <div class="hero__glow hero__glow--gmax" aria-hidden="true"></div>
+    <nav class="page-nav" aria-label="Seiten">
+      <a class="page-nav__link" href="index.html">Typ-Rangliste</a>
+      <a class="page-nav__link" href="konter.html" aria-current="page">G-Max-Konter</a>
+    </nav>
+    <p class="hero__eyebrow hero__eyebrow--gmax">Pokémon GO · Gigadynamax-Kämpfe</p>
+    <h1 class="hero__title">G-Max<span>-</span>Konter</h1>
+    <p class="hero__lead">Wähle einen Gigadynamax-Boss und erhalte fertige Team-Vorschläge, dazu die besten Angreifer, Tanks und Heiler gegen genau diesen Boss.</p>
+  </header>
+
+  <nav class="boss-bar" aria-label="Boss wählen">
+    <div class="scroller">
+      <div class="scroller__track boss-bar__track" id="boss-bar"></div>
+    </div>
+  </nav>
+
+  <main id="counters" class="counters" tabindex="-1">
+    <noscript><p class="state">Diese Seite braucht JavaScript, um die Konter anzuzeigen.</p></noscript>
+  </main>
+
+  <section class="method" aria-labelledby="method-title">
+    <h2 id="method-title">So wird gerechnet</h2>
+    <div class="method__grid">
+      <article>
+        <h3>Angreifer</h3>
+        <p>Max-Schaden (Stufe 3, Level 40, 15/15/15, mit STAB) mal Typ-Effektivität gegen den Boss. Pro Pokémon zählt die stärkste Max-Attacke, die es einsetzen kann.</p>
+      </article>
+      <article>
+        <h3>Tanks</h3>
+        <p>Wie viel Schaden das Pokémon aushält: Verteidigung × (KP + 3 Dyna-Wall-Schilde à 60 KP), geteilt durch die durchschnittliche Wirkung der Boss-Lade-Attacken auf seine Typen.</p>
+      </article>
+      <article>
+        <h3>Heiler</h3>
+        <p>Dyna-Kur heilt alle um 16 % der KP des Heilers. Heiler, die die Boss-Attacken schlecht aushalten, werden abgewertet – ein Heiler hilft nur, solange er steht.</p>
+      </article>
+      <article>
+        <h3>Boss-Attacken</h3>
+        <p>Der Boss setzt im Max-Kampf zwei seiner Lade-Attacken ein, zufällig aus allen möglichen – auch Elite-Attacken. Deshalb wird über alle gemittelt.</p>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p id="sources"></p>
+    <p>Inoffizielles, nicht-kommerzielles Fanprojekt ohne Verbindung zu Nintendo, The Pokémon Company oder Scopely. Pokémon, Pokémon GO und die Namen der Pokémon sind Marken von Nintendo. © Pokémon/Nintendo/Creatures/GAME FREAK.</p>
+    <p><a href="index.html">Typ-Rangliste</a> · <a href="konter.html" aria-current="page">G-Max-Konter</a> · <a href="datenschutz.html">Datenschutz</a></p>
+  </footer>
+</body>
+</html>

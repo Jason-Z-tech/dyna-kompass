@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Typ-Rangliste – Dyna-Kompass</title>
+  <meta name="description" content="Die stärksten Dynamax- und Gigadynamax-Pokémon in Pokémon GO für jeden Typ, mit Werten und Attacken.">
+  <meta name="theme-color" content="#0b0d18">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="data/pokemon-data.js" defer></script>
+  <script src="js/shared.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#ranking">Zur Rangliste springen</a>
+
+  <header class="hero">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <nav class="page-nav" aria-label="Seiten">
+      <a class="page-nav__link" href="index.html" aria-current="page">Typ-Rangliste</a>
+      <a class="page-nav__link" href="konter.html">G-Max-Konter</a>
+    </nav>
+    <p class="hero__eyebrow">Pokémon GO · Max-Kämpfe</p>
+    <h1 class="hero__title">Dyna<span>-</span>Kompass</h1>
+    <p class="hero__lead">Die stärksten Dynamax- und Gigadynamax-Angreifer für jeden Typ – mit Werten, Attacken und dem schnellsten Weg zur vollen Dyna-Leiste.</p>
+    <p class="hero__meta" id="data-meta"></p>
+  </header>
+
+  <nav class="type-bar" aria-label="Typ wählen">
+    <div class="scroller">
+      <div class="scroller__track type-bar__track" id="type-bar"></div>
+    </div>
+  </nav>
+
+  <form class="controls" id="controls" autocomplete="off">
+    <div class="search">
+      <label class="visually-hidden" for="search">Pokémon suchen (alle Typen)</label>
+      <svg class="search__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+      <input id="search" name="search" type="search" placeholder="Pokémon suchen (alle Typen) …" autocomplete="off" enterkeyhint="search">
+      <button class="search__clear" id="search-clear" type="button" aria-label="Suche leeren" hidden>×</button>
+    </div>
+
+    <fieldset class="segmented" id="kind-filter">
+      <legend class="control-label">Art</legend>
+      <div class="segmented__options">
+        <label><input type="radio" name="kind" value="all" checked autocomplete="off"><span>Alle <small data-count="all"></small></span></label>
+        <label><input type="radio" name="kind" value="dynamax" autocomplete="off"><span>Dynamax <small data-count="dynamax"></small></span></label>
+        <label><input type="radio" name="kind" value="gigantamax" autocomplete="off"><span>Gigadynamax <small data-count="gigantamax"></small></span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="segmented segmented--sort" id="sort-filter">
+      <legend class="control-label">Sortieren nach</legend>
+      <div class="segmented__options">
+        <label><input type="radio" name="sort" value="damage" checked autocomplete="off"><span>Schaden</span></label>
+        <label><input type="radio" name="sort" value="charge" autocomplete="off"><span>Laden</span></label>
+        <label><input type="radio" name="sort" value="bulk" autocomplete="off"><span>Haltbarkeit</span></label>
+      </div>
+    </fieldset>
+
+    <div class="controls__row">
+      <label class="toggle">
+        <input id="elite" name="elite" type="checkbox" checked autocomplete="off">
+        <span class="toggle__track" aria-hidden="true"></span>
+        <span>Elite-Attacken einbeziehen</span>
+      </label>
+      <button class="reset-btn" id="reset" type="button" hidden>Filter zurücksetzen</button>
+    </div>
+  </form>
+
+  <section class="search-hits" id="search-hits" aria-live="polite" hidden></section>
+
+  <main id="ranking" class="ranking" tabindex="-1">
+    <noscript><p class="state">Diese Seite braucht JavaScript, um die Rangliste anzuzeigen.</p></noscript>
+  </main>
+
+  <section class="method" aria-labelledby="method-title">
+    <h2 id="method-title">So wird gerechnet</h2>
+    <div class="method__grid">
+      <article>
+        <h3>Max-Schaden</h3>
+        <p>Schaden einer Max-Attacke auf Stufe 3 (Stärke 350, G-Max 450), multipliziert mit dem Angriffswert bei Level 40 und perfekten Werten. Passt der Attacken-Typ zum Pokémon, gibt es 20 % Bonus (STAB).</p>
+      </article>
+      <article>
+        <h3>Welche Dyna-Attacke?</h3>
+        <p>Bei Dynamax bestimmt die Sofort-Attacke den Typ der Max-Attacke. Ein Pokémon kann deshalb in mehreren Typ-Listen auftauchen. Gigadynamax-Pokémon haben immer ihre feste G-Max-Attacke.</p>
+      </article>
+      <article>
+        <h3>Laden</h3>
+        <p>In starken Max-Kämpfen füllt jeder Treffer die Dyna-Leiste um etwa einen Punkt. Deshalb zählt, wie viele Treffer pro Sekunde die schnellste passende Sofort-Attacke schafft.</p>
+      </article>
+      <article>
+        <h3>Haltbarkeit</h3>
+        <p>Verteidigung mal KP bei Level 40. Je höher, desto länger hält das Pokémon durch, bis die Leiste voll ist.</p>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p id="sources"></p>
+    <p>Inoffizielles, nicht-kommerzielles Fanprojekt ohne Verbindung zu Nintendo, The Pokémon Company oder Scopely. Pokémon, Pokémon GO und die Namen der Pokémon sind Marken von Nintendo. © Pokémon/Nintendo/Creatures/GAME FREAK.</p>
+    <p><a href="index.html" aria-current="page">Typ-Rangliste</a> · <a href="konter.html">G-Max-Konter</a> · <a href="datenschutz.html">Datenschutz</a></p>
+  </footer>
+</body>
+</html>
