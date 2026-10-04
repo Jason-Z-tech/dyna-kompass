@@ -38,7 +38,8 @@
     const attackers = [];
     const tanks = [];
     const healers = [];
-    for (const p of data.pokemon) {
+    // Angekündigte Pokémon zählen erst ab ihrem Erscheinungstag – vorher kann sie niemand einsetzen.
+    for (const p of data.pokemon.filter((x) => !Dyna.isUpcoming(x))) {
       const fast = Dyna.fastestMove(p, state.includeElite);
       if (!fast) continue;
       const taken = damageTaken(p, moves);
@@ -134,6 +135,9 @@
     return 'Sehr robust gegen alle Boss-Attacken.';
   }
 
+  // Zusatz für Pokémon, die nur in einer Weltregion erscheinen – sonst leer.
+  const regionNote = (pokemon) => (pokemon.region ? ` Erscheint nur in: ${pokemon.region}.` : '');
+
   // ---------- Darstellung ----------
 
   function renderBossBar() {
@@ -192,7 +196,7 @@
           el('span', { text: p.name }),
         ]),
         el('p', { class: 'member__action' }, actionText(role, entry)),
-        el('p', { class: 'member__reason', text: reasonText(role, entry) }),
+        el('p', { class: 'member__reason', text: `${reasonText(role, entry)}${regionNote(p)}` }),
       ]),
     ]);
   }
@@ -233,7 +237,7 @@
       el('span', { class: 'row__rank', text: rank }),
       Dyna.pokemonArt(p, { size: 'sm' }),
       el('div', { class: 'row__info' }, [
-        el('p', { class: 'row__name' }, [el('span', { text: p.name }), Dyna.kindBadge(p)]),
+        el('p', { class: 'row__name' }, [el('span', { text: p.name }), Dyna.kindBadge(p), Dyna.regionBadge(p)]),
         el('div', { class: 'card__types' }, p.types.map((t) => Dyna.typeChip(t, data, true))),
         el('p', { class: 'row__detail' }, detail),
       ]),

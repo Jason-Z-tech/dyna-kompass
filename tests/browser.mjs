@@ -29,7 +29,7 @@ async function waitForDebugger(port) {
   throw new Error('Chrome hat den Debug-Port nicht geöffnet.');
 }
 
-export async function launchBrowser({ width = 1280, height = 900, mobile = false } = {}) {
+export async function launchBrowser({ width = 1280, height = 900, mobile = false, timezone = null } = {}) {
   const chrome = CHROME_PATHS.find((p) => existsSync(p));
   if (!chrome) throw new Error('Kein Chrome oder Edge gefunden. Pfad per CHROME_PATH angeben.');
   const profile = await mkdtemp(path.join(os.tmpdir(), 'dyna-test-'));
@@ -72,6 +72,8 @@ export async function launchBrowser({ width = 1280, height = 900, mobile = false
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   if (mobile) await send('Emulation.setTouchEmulationEnabled', { enabled: true });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  // Eigene Zeitzone (z. B. "Pacific/Auckland"), damit Datumsfehler durch Zeitzonen-Umrechnung auffallen.
+  if (timezone) await send('Emulation.setTimezoneOverride', { timezoneId: timezone });
 
   // Wartet auf das Laden der Seite, höchstens timeoutMs – sonst Fehler statt ewigem Hängen.
   const waitForLoad = (timeoutMs = 10000) => new Promise((resolve, reject) => {
@@ -88,8 +90,28 @@ export async function launchBrowser({ width = 1280, height = 900, mobile = false
     listeners.push(l);
   });
 
+  let fixedDateScript = null;
+
   const page = {
     errors,
+    // Stellt Tag und Uhrzeit der Seite fest ein ("2026-10-24", "23:30", in der Zeitzone der Seite) –
+    // gilt ab dem nächsten Laden. Ohne Tag läuft wieder die echte Uhr.
+    async setToday(isoDay = null, time = '12:00') {
+      if (fixedDateScript) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: fixedDateScript });
+      fixedDateScript = null;
+      if (!isoDay) return;
+      const [year, month, day] = isoDay.split('-').map(Number);
+      const [hour, minute] = time.split(':').map(Number);
+      const source = `(() => {
+        const RealDate = Date;
+        const fixed = new RealDate(${year}, ${month - 1}, ${day}, ${hour}, ${minute}).getTime();
+        window.Date = class extends RealDate {
+          constructor(...args) { super(...(args.length ? args : [fixed])); }
+          static now() { return fixed; }
+        };
+      })()`;
+      fixedDateScript = (await send('Page.addScriptToEvaluateOnNewDocument', { source })).identifier;
+    },
     // Lädt immer frisch – auch wenn sich nur der #-Teil der Adresse ändert.
     async goto(url) {
       const blank = waitForLoad();

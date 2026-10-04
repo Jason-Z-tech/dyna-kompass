@@ -520,6 +520,7 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .ranking__header h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.4rem, 5vw, 2rem); line-height: 1.1; }
 .ranking__type { color: color-mix(in srgb, var(--c) 70%, #fff); text-shadow: 0 0 24px color-mix(in srgb, var(--c) 50%, transparent); }
 .ranking__count { margin: 0; color: var(--muted); font-weight: 600; }
+.ranking__move { white-space: nowrap; }
 
 .ranking__list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
 
@@ -599,6 +600,14 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .badge--dynamax { background: var(--dyna-soft); color: #ff8fab; border: 1px solid #ff2e6366; }
 .badge--gigantamax { background: var(--gmax-soft); color: var(--gmax); border: 1px solid #ffc23d66; }
 .badge--elite { margin-left: 6px; background: #3ee0c91f; color: var(--charge); border: 1px solid #3ee0c955; }
+/* Datum und Region sind ganze Wörter statt Kürzel: normale Schreibung, dürfen umbrechen. */
+.badge--upcoming, .badge--region { background: #ffffff0f; color: var(--text); border: 1px dashed #a3a8ccb3; text-transform: none; letter-spacing: .02em; white-space: normal; }
+.badge--region { border-style: solid; }
+
+/* Angekündigt, noch nicht erhältlich: gestrichelter Rahmen wie bei Platzhaltern, Feld ohne Platznummer. */
+.card--upcoming { border-style: dashed; border-color: #a3a8ccb3; }
+.card--upcoming:hover { border-color: var(--muted); }
+.card__rank.card__rank--upcoming { padding: 0 2px; font-size: .75rem; color: var(--text); }
 
 .card__chevron {
   grid-area: chevron;

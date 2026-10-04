@@ -28,9 +28,33 @@ const Dyna = (() => {
   }
 
   const formatNumber = (n, digits = 0) => n.toLocaleString('de-CH', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-  const formatDate = (iso) => new Date(iso).toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' });
   const formatFactor = (f) => `×${f.toLocaleString('de-CH', { maximumFractionDigits: 2 })}`;
   const slugOf = (type) => type.toLowerCase();
+
+  // ---------- Datum ----------
+
+  // Erscheinungstage sind reine Kalendertage ("2026-10-24"). Sie werden ohne Zeitzonen-Umrechnung
+  // ausgegeben – sonst zeigen Geräte westlich von Greenwich den Vortag.
+  const isDayOnly = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const formatWith = (iso, options) => new Date(iso).toLocaleDateString('de-CH', isDayOnly(iso) ? { ...options, timeZone: 'UTC' } : options);
+  const formatDate = (iso) => formatWith(iso, { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Heutiger Kalendertag auf dem Gerät als "JJJJ-MM-TT" – so lässt er sich direkt mit releaseDate vergleichen.
+  function todayIso() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  // Für Marken: "24. Oktober", mit Jahr nur, wenn es nicht das laufende ist.
+  function formatDay(iso) {
+    const sameYear = iso.slice(0, 4) === todayIso().slice(0, 4);
+    return sameYear ? formatWith(iso, { day: 'numeric', month: 'long' }) : formatDate(iso);
+  }
+
+  // Angekündigt, aber noch nicht erschienen: Der Erscheinungstag liegt nach dem heutigen Tag.
+  // Gigadynamax-Einträge tragen kein Datum und gelten immer als erschienen.
+  const isUpcoming = (pokemon) => Boolean(pokemon.releaseDate) && pokemon.releaseDate > todayIso();
 
   // ---------- Kampf-Logik ----------
 
@@ -87,6 +111,18 @@ const Dyna = (() => {
   function kindBadge(pokemon) {
     const isGmax = pokemon.kind === 'gigantamax';
     return el('span', { class: `badge badge--${pokemon.kind}`, text: isGmax ? 'G-Max' : 'Dynamax' });
+  }
+
+  // Marke "Ab 24. Oktober" für angekündigte Pokémon; für erschienene gibt es keine (null).
+  function upcomingBadge(pokemon) {
+    if (!isUpcoming(pokemon)) return null;
+    return el('span', { class: 'badge badge--upcoming', text: `Ab ${formatDay(pokemon.releaseDate)}` });
+  }
+
+  // Marke "Nur Asien-Pazifik" für Pokémon, die nur in einer Weltregion erscheinen; sonst keine (null).
+  function regionBadge(pokemon) {
+    if (!pokemon.region) return null;
+    return el('span', { class: 'badge badge--region', text: `Nur ${pokemon.region}` });
   }
 
   // Ohne Bild (Plan B, --no-images): Pokédex-Nummer auf einem Verlauf der Typfarben.
@@ -172,12 +208,15 @@ const Dyna = (() => {
   function renderSources(data) {
     const target = document.getElementById('sources');
     if (!target) return;
-    const { gameMaster, releases, names, gameMasterDate } = data.sources;
+    const { gameMaster, releases, official, names, gameMasterDate } = data.sources;
     const link = (source) => el('a', { href: source.url, text: source.name });
     const hasArtwork = data.pokemon.some((p) => p.image);
     target.replaceChildren(
       'Quellen: Spieldaten von ', link(gameMaster), ` (Stand ${formatDate(gameMasterDate)}), `,
-      'Erscheinungsdaten aus dem ', link(releases), ', deutsche Namen', hasArtwork ? ' und Bilder' : '', ' von ', link(names), '. ',
+      'Erscheinungsdaten aus dem ', link(releases),
+      // Eine ältere Daten-Datei aus dem Browser-Cache kennt diese Quelle noch nicht.
+      ...(official ? [', bei Vor-Ort-Events und Regionen nach den Ankündigungen auf ', link(official)] : []),
+      ', deutsche Namen', hasArtwork ? ' und Bilder' : '', ' von ', link(names), '. ',
       `Berechnet für Level ${data.rules.level} mit ${data.rules.iv}.`,
       // Im Plan-B-Modus (ohne Bilder) entfällt der Artwork-Hinweis automatisch.
       hasArtwork ? ' Artworks © Pokémon/Nintendo/Creatures/GAME FREAK.' : '',
@@ -194,9 +233,9 @@ const Dyna = (() => {
   }
 
   return {
-    TYPE_ORDER, el, formatNumber, formatDate, formatFactor, slugOf,
+    TYPE_ORDER, el, formatNumber, formatDate, formatFactor, slugOf, isUpcoming,
     bySpeedThenDps, fastestMove, rolesOf, effectiveness,
-    typeChip, kindBadge, pokemonArt, meter, eliteBadge,
+    typeChip, kindBadge, upcomingBadge, regionBadge, pokemonArt, meter, eliteBadge,
     enhanceScroller, centerInScroller, revealIfAbove, loadData, renderSources, readHash, writeHash,
   };
 })();

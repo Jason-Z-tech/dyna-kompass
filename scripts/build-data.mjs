@@ -94,7 +94,61 @@ async function mapLimited(items, limit, fn) {
 
 const titleCase = (id) => id.toLowerCase().split(/[_\s-]+/).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
-// ---------- Wiki: welche Pokémon sind wirklich erschienen? ----------
+// ---------- Wiki: welche Pokémon sind erschienen oder mit festem Datum angekündigt? ----------
+
+const WIKI_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+
+// Von Hand gepflegte Ergänzungen zum Wiki. Das Wiki nennt den Tag, an dem ein Pokémon zum ersten Mal
+// irgendwo auf der Welt erscheint – auch wenn das nur ein Vor-Ort-Event mit Ticket ist oder nur eine
+// Weltregion. Die Seite soll sagen, ab wann alle es bekommen können. Schlüssel ist der englische Name
+// aus dem Wiki; jede Zeile braucht eine offizielle Quelle.
+//   releaseDate  Tag, ab dem das Pokémon weltweit erhältlich ist (ersetzt das Wiki-Datum)
+//   region       Weltregion, in der es ausschließlich erscheint (löschen, sobald es überall erscheint)
+const RELEASE_NOTES = {
+  // Wiki: 6.11.2026 – dann aber nur mit Ticket vor Ort (Sendai, Mexiko-Stadt). Weltweit erst bei der
+  // „Naturzone: Global“: https://pokemongo.com/de/gowildarea/global
+  Dialga: { releaseDate: '2026-11-14' },
+  Palkia: { releaseDate: '2026-11-15' },
+  // Dyna-Kampftag am 24.10.2026, jedes nur in seiner Region:
+  // https://pokemongo.com/de/news/dynamax-uxie-mesprit-azelf-max-battle-day-2026
+  Uxie: { region: 'Asien-Pazifik' },
+  Mesprit: { region: 'Europa, Naher Osten, Afrika und Indien' },
+  Azelf: { region: 'Amerika und Grönland' },
+};
+// So schlicht kündigt das Wiki an, wenn ein Pokémon einfach überall erscheint. Jeder andere Satz
+// (ein Event, Regionen, Tickets) kann heißen, dass das Wiki-Datum nicht für alle gilt.
+const WIKI_PLAIN_RELEASE = /^Dynamax [^.]* will be released\.$/;
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Kalendertag in der Zeitzone des Rechners als "JJJJ-MM-TT".
+const localIsoDay = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+// Gültiger Kalendertag in genau dieser Schreibweise? Die Seite vergleicht die Tage als Text –
+// ein "2026-11-4" oder ein 31. November würde dort still falsch einsortiert.
+function isIsoDay(text) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const time = Date.parse(`${text}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === text;
+}
+
+// Auskommentierter Wikitext (<!-- … -->) zählt nicht: So parken Wiki-Autoren Unbestätigtes.
+const withoutComments = (wikitext) => wikitext.replace(/<!--[\s\S]*?-->/g, '');
+
+// Liest den Kalendertag aus einer Wiki-Überschrift: "October {{Nth|24}}, 2026" -> "2026-10-24".
+// Bewusst ohne Zeitzonen-Umrechnung – die hatte jedes Datum um einen Tag nach vorn verschoben.
+function isoDayFromHeading(heading) {
+  const m = /^([A-Z][a-z]+)\s+(?:\{\{Nth\|(\d{1,2})\}\}|(\d{1,2})),\s*(\d{4})$/.exec(heading);
+  if (!m) return null;
+  const month = WIKI_MONTHS.indexOf(m[1]);
+  const day = Number(m[2] ?? m[3]);
+  const year = Number(m[4]);
+  // Der Umweg über Date.UTC prüft nur, ob es den Tag gibt (kein 31. Juni).
+  const check = new Date(Date.UTC(year, month, day));
+  if (month < 0 || check.getUTCMonth() !== month || check.getUTCDate() !== day) return null;
+  return `${year}-${pad2(month + 1)}-${pad2(day)}`;
+}
 
 function parseTemplateParams(raw) {
   const positional = [];
@@ -107,26 +161,105 @@ function parseTemplateParams(raw) {
   return { positional, named };
 }
 
-function parseReleasedDynamax(wikitext, today) {
-  const sections = wikitext.split(/^==([^=].*?)==\s*$/m);
-  const released = new Map();
-  for (let i = 1; i < sections.length; i += 2) {
-    const heading = sections[i].replace(/\{\{Nth\|(\d+)\}\}/, '$1').trim();
-    const date = new Date(heading);
-    if (Number.isNaN(date.getTime()) || date > today) continue;
-    for (const m of sections[i + 1].matchAll(/\{\{P\|([^}]*)\}\}/g)) {
-      const { positional, named } = parseTemplateParams(m[1]);
-      if (named.dynamax !== 't') continue;
-      const key = `${positional[0]}|${named.form ?? ''}`;
-      if (!released.has(key)) {
-        released.set(key, { name: positional[0], form: named.form ?? null, releaseDate: date.toISOString().slice(0, 10) });
-      }
-    }
-  }
-  return [...released.values()];
+// Dynamax-Einträge eines Wiki-Abschnitts, z. B. {{P|Dialga||Steel|Dragon|dynamax=t}}.
+function dynamaxEntries(sectionText) {
+  return [...sectionText.matchAll(/\{\{P\|([^}]*)\}\}/g)]
+    .map((m) => parseTemplateParams(m[1]))
+    .filter(({ named }) => named.dynamax === 't')
+    .map(({ positional, named }) => ({ name: positional[0], form: named.form ?? null }));
 }
 
-function parseReleasedGigantamax(wikitext) {
+// Der Satz eines Wiki-Abschnitts, der das Erscheinen beschreibt, ohne Wiki-Auszeichnung, z. B.
+// "Dynamax Dialga and Palkia will be released at the start of Pokémon GO Wild Area 2026: Sendai • Tohoku."
+function sectionIntro(sectionText) {
+  const line = sectionText.split('\n').map((l) => l.trim()).find((l) => /\breleased\b/i.test(l)) ?? '';
+  return line.replace(/<ref[^>]*>.*?<\/ref>|<[^>]+>/g, '').replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1').replace(/''+/g, '');
+}
+
+// Alle Dynamax-Pokémon mit ihrem Erscheinungstag laut Wiki. Liegt der Tag in der Zukunft, ist das
+// Pokémon erst angekündigt – die Seite schaltet es an diesem Tag von selbst frei.
+// Ändert das Wiki seinen Aufbau, bricht die Funktion ab, statt still falsche Daten zu liefern.
+function parseDynamaxReleases(wikitext) {
+  const sections = withoutComments(wikitext).split(/^==([^=].*?)==\s*$/m);
+  // Vor der ersten Überschrift steht nur der Einleitungskasten. Alles andere wäre unbemerkt verloren.
+  if (/^=/m.test(sections[0]) || sections[0].includes('{{P|')) {
+    throw new Error('Wiki-Text vor der ersten erkannten Überschrift enthält eine Überschrift oder Pokémon – Seitenaufbau hat sich geändert.');
+  }
+  const releases = new Map();
+  const undated = [];
+  let previousDate = '';
+  for (let i = 1; i < sections.length; i += 2) {
+    const heading = sections[i].trim();
+    const text = sections[i + 1];
+    const entries = dynamaxEntries(text);
+    // Eine Überschrift, die das Muster oben nicht trifft, hinge sonst unbemerkt am Abschnitt davor.
+    const stray = /^=.*$/m.exec(text);
+    if (stray) throw new Error(`Wiki-Abschnitt "${heading}" enthält eine nicht erkannte Überschrift: ${stray[0].trim()}`);
+    const releaseDate = isoDayFromHeading(heading);
+    if (!releaseDate) {
+      // Abschnitte ohne Pokémon ("References") sind egal. Mit Pokémon fehlt uns ihr Datum.
+      if (!entries.length) continue;
+      if (/\b(was|were) released\b/.test(text)) {
+        throw new Error(`Wiki-Überschrift "${heading}" ist kein lesbares Datum, der Abschnitt nennt aber erschienene Pokémon.`);
+      }
+      undated.push(heading);
+      continue;
+    }
+    if (releaseDate <= previousDate) {
+      throw new Error(`Wiki-Abschnitte nicht nach Datum aufsteigend: "${heading}" folgt auf ${previousDate} – Tippfehler im Wiki?`);
+    }
+    previousDate = releaseDate;
+    // Jeder {{P|…}}-Eintrag dieser Seite trägt "dynamax=t" (schillernde heißen {{PS|…}}).
+    const listed = text.split('{{P|').length - 1;
+    if (listed !== entries.length) {
+      throw new Error(`Wiki-Abschnitt "${heading}": ${listed - entries.length} Pokémon ohne lesbares "dynamax=t" – Vorlage geändert?`);
+    }
+    const intro = sectionIntro(text);
+    for (const { name, form } of entries) {
+      const key = `${name}|${form ?? ''}`;
+      // Steht ein Pokémon in mehreren Abschnitten, zählt der erste und damit früheste Tag.
+      if (!releases.has(key)) releases.set(key, { name, form, releaseDate, wikiDate: releaseDate, intro });
+    }
+  }
+  return { releases: [...releases.values()], undated };
+}
+
+// Trägt RELEASE_NOTES in die Liste ein und gibt Hinweise für das Ende des Laufs zurück.
+function applyReleaseNotes(releases) {
+  const hints = [];
+  for (const [name, note] of Object.entries(RELEASE_NOTES)) {
+    const matches = releases.filter((r) => r.name === name);
+    if (!matches.length) hints.push(`RELEASE_NOTES nennt "${name}", das Wiki nicht (mehr) – Eintrag prüfen.`);
+    for (const release of matches) {
+      if (note.releaseDate && note.releaseDate < release.wikiDate) {
+        hints.push(`RELEASE_NOTES setzt "${name}" auf ${note.releaseDate}, das Wiki nennt aber erst ${release.wikiDate} – Eintrag prüfen.`);
+      }
+      Object.assign(release, note);
+    }
+  }
+  return hints;
+}
+
+// Zeigt, was das Wiki ankündigt, damit bei jedem Lauf auffällt, wenn ein Eintrag in RELEASE_NOTES fehlt.
+function reportAnnounced(announced) {
+  const hints = [];
+  for (const wikiDate of [...new Set(announced.map((r) => r.wikiDate))].sort()) {
+    const group = announced.filter((r) => r.wikiDate === wikiDate);
+    const names = group.map((r) => {
+      const changes = [r.releaseDate !== r.wikiDate ? `auf der Seite ab ${r.releaseDate}` : null, r.region ? `nur ${r.region}` : null].filter(Boolean);
+      return changes.length ? `${r.name} (${changes.join(', ')})` : r.name;
+    });
+    console.log(`     ${wikiDate}  ${names.join(', ')}\n                 Wiki: ${group[0].intro || '(kein Text)'}`);
+    const unchecked = group.filter((r) => !RELEASE_NOTES[r.name]).map((r) => r.name);
+    if (!WIKI_PLAIN_RELEASE.test(group[0].intro) && unchecked.length) {
+      hints.push(`Das Wiki kündigt ${unchecked.join(', ')} (${wikiDate}) nicht schlicht an – vielleicht nur bei einem Event oder in einzelnen Regionen. Offizielle Ankündigung prüfen und bei Bedarf in RELEASE_NOTES eintragen.`);
+    }
+  }
+  return hints;
+}
+
+function parseReleasedGigantamax(rawWikitext) {
+  const wikitext = withoutComments(rawWikitext);
   const start = wikitext.indexOf('{{PH|Gigantamax Pokémon}}');
   const end = wikitext.indexOf('{{PH|Unreleased Gigantamax Pokémon}}', start);
   if (start < 0 || end < 0) throw new Error('Gigantamax-Liste im Wiki nicht gefunden – Seitenaufbau hat sich geändert.');
@@ -275,8 +408,13 @@ function describeMove(index, rawId, isElite, names) {
 
 const germanName = (names) => names?.find((n) => n.language.name === 'de')?.name ?? null;
 
+// Attacken, deren Spiel-ID sich nicht nach der Regel in den PokeAPI-Namen übersetzen lässt.
+// Ohne Treffer bliebe auf der Seite der englische Rohname stehen ("Futuresight" statt "Seher").
+const POKEAPI_MOVE_SLUGS = { FUTURESIGHT: 'future-sight', SUPER_POWER: 'superpower', PYROBALL: 'pyro-ball' };
+
 function pokeApiMoveSlug(moveId) {
-  return moveId.replace(/_FAST$/, '').toLowerCase().replace(/_/g, '-');
+  const id = moveId.replace(/_FAST$/, '');
+  return POKEAPI_MOVE_SLUGS[id] ?? id.toLowerCase().replace(/_/g, '-');
 }
 
 function pokeApiPokemonSlug(speciesId, formId, gmax) {
@@ -367,6 +505,8 @@ function buildEntry(index, source, kind, moveNames) {
     chargedMoves: charged,
     gmaxMove: null,
     releaseDate: source.releaseDate ?? null,
+    // Weltregion, in der das Pokémon ausschließlich erscheint (aus RELEASE_NOTES), sonst null.
+    region: source.region ?? null,
   };
 
   if (kind === 'gigantamax') {
@@ -383,7 +523,7 @@ function buildEntry(index, source, kind, moveNames) {
 
 async function main() {
   await mkdir(CACHE_DIR, { recursive: true });
-  const today = new Date();
+  const today = localIsoDay(new Date());
 
   console.log('1/5 Spieldaten laden …');
   const gm = await cachedJson('game-master', GAME_MASTER_URL, { refreshable: true });
@@ -393,13 +533,21 @@ async function main() {
   console.log('2/5 Release-Listen aus dem Wiki laden …');
   const dynWiki = await cachedJson('wiki-dynamax', WIKI_API + WIKI_DYNAMAX_PAGE, { refreshable: true });
   const gmaxWiki = await cachedJson('wiki-gigantamax', WIKI_API + WIKI_GIGANTAMAX_PAGE, { refreshable: true });
-  const releasedDyn = parseReleasedDynamax(dynWiki.parse.wikitext['*'], today);
+  const { releases: dynamax, undated } = parseDynamaxReleases(dynWiki.parse.wikitext['*']);
   const releasedGmax = expandGmaxForms(index, parseReleasedGigantamax(gmaxWiki.parse.wikitext['*']));
-  console.log(`   ${releasedDyn.length} Dynamax, ${releasedGmax.length} Gigadynamax erschienen`);
+  const hints = applyReleaseNotes(dynamax);
+  const malformed = dynamax.filter((d) => !isIsoDay(d.releaseDate));
+  if (malformed.length) {
+    throw new Error(`Erscheinungstag ist kein gültiger Tag im Format JJJJ-MM-TT: ${malformed.map((d) => `${d.name} "${d.releaseDate}"`).join(', ')}`);
+  }
+  const announced = dynamax.filter((d) => d.releaseDate > today);
+  console.log(`   ${dynamax.length - announced.length} Dynamax und ${releasedGmax.length} Gigadynamax erschienen, ${announced.length} Dynamax angekündigt`);
+  hints.push(...reportAnnounced(announced));
+  if (undated.length) hints.push(`Wiki-Abschnitt ohne lesbares Datum übersprungen: ${undated.join(', ')}`);
 
   console.log('3/5 Deutsche Namen laden …');
   const moveIds = new Set();
-  for (const src of [...releasedDyn, ...releasedGmax]) {
+  for (const src of [...dynamax, ...releasedGmax]) {
     const sid = speciesIdFromName(src.name);
     const s = findSettings(index, sid, formIdFromWiki(sid, src.form));
     for (const id of [...(s?.quickMoves ?? []), ...(s?.eliteQuickMove ?? []), ...(s?.cinematicMoves ?? []), ...(s?.eliteCinematicMove ?? [])]) {
@@ -412,7 +560,7 @@ async function main() {
 
   const entries = [];
   const errors = [];
-  for (const [list, kind] of [[releasedDyn, 'dynamax'], [releasedGmax, 'gigantamax']]) {
+  for (const [list, kind] of [[dynamax, 'dynamax'], [releasedGmax, 'gigantamax']]) {
     for (const src of list) {
       const { entry, error } = buildEntry(index, src, kind, moveNames);
       if (error) errors.push(error); else entries.push(entry);
@@ -459,6 +607,8 @@ async function main() {
       gameMasterDate: commits?.[0]?.commit?.author?.date ?? null,
       gameMaster: { name: 'PokeMiners/game_masters', url: 'https://github.com/PokeMiners/game_masters' },
       releases: { name: 'Pokémon GO Wiki (Fandom)', url: 'https://pokemongo.fandom.com/wiki/List_of_Dynamax_Pok%C3%A9mon_by_release_date' },
+      // Quelle der Korrekturen aus RELEASE_NOTES (weltweite Termine, Regionen).
+      official: { name: 'pokemongo.com', url: 'https://pokemongo.com/de/news' },
       names: { name: 'PokeAPI', url: 'https://pokeapi.co/' },
     },
     rules: {
@@ -475,6 +625,7 @@ async function main() {
   await writeFile(OUT_FILE, `// Automatisch erzeugt von scripts/build-data.mjs – nicht von Hand bearbeiten.\nwindow.POKEMON_DATA = ${JSON.stringify(output)};\n`);
 
   console.log(`\nFertig: ${entries.length} Einträge → ${path.relative(ROOT, OUT_FILE)}`);
+  if (hints.length) console.warn(`\nHinweis – bitte prüfen (${hints.length}):\n  ${hints.join('\n  ')}`);
   if (errors.length) console.warn(`\nWarnung – nicht zugeordnet (${errors.length}):\n  ${errors.join('\n  ')}`);
   if (missingImages.length) console.warn(`\nWarnung – ohne Bild (${missingImages.length}):\n  ${missingImages.join('\n  ')}`);
 }

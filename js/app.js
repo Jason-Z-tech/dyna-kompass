@@ -3,7 +3,7 @@
 // Seite "Typ-Rangliste": beste Dynamax-/Gigadynamax-Angreifer je Typ.
 
 (() => {
-  const { el, TYPE_ORDER, formatNumber, formatDate, slugOf } = Dyna;
+  const { el, TYPE_ORDER, formatNumber, formatDate, slugOf, isUpcoming } = Dyna;
 
   const DEFAULTS = { kind: 'all', sort: 'damage', includeElite: true, query: '' };
   const SORTS = {
@@ -39,6 +39,13 @@
   // Rangliste eines Typs mit Art-Filter und Sortierung, ohne Suchfilter (für Platz-Nummern).
   function rankedList(type) {
     return roles.filter((r) => r.type === type && matchesKind(r.pokemon)).sort(SORTS[state.sort]);
+  }
+
+  // Platz-Nummern bekommen nur erschienene Pokémon. Angekündigte stehen dort, wo sie einsteigen
+  // werden, zählen aber noch nicht mit (rank: null) – die Plätze zeigen, was heute einsetzbar ist.
+  function withRanks(list) {
+    let rank = 0;
+    return list.map((role) => ({ role, rank: isUpcoming(role.pokemon) ? null : ++rank }));
   }
 
   // ---------- Karten ----------
@@ -94,7 +101,7 @@
           el('div', {}, [el('dt', { text: 'WP Level 50' }), el('dd', { text: formatNumber(pokemon.cp50) })]),
           el('div', {}, [el('dt', { text: 'KP Level 40' }), el('dd', { text: formatNumber(pokemon.hp40) })]),
           pokemon.releaseDate
-            ? el('div', {}, [el('dt', { text: 'Dynamax seit' }), el('dd', { class: 'facts__date', text: formatDate(pokemon.releaseDate) })])
+            ? el('div', {}, [el('dt', { text: isUpcoming(pokemon) ? 'Dynamax ab' : 'Dynamax seit' }), el('dd', { class: 'facts__date', text: formatDate(pokemon.releaseDate) })])
             : null,
         ]),
       ]),
@@ -103,16 +110,20 @@
     ]);
   }
 
-  function card(role, rank) {
+  // rank ist null bei angekündigten Pokémon; position ist die Stelle in der angezeigten Liste (ab 0).
+  function card(role, rank, position) {
     const { pokemon } = role;
-    const podium = rank <= 3 ? ` card--top card--top-${rank}` : '';
-    return el('li', { class: `card${podium}`, style: { '--i': Math.min(rank - 1, 12) } }, [
+    const upcoming = rank === null;
+    const podium = !upcoming && rank <= 3 ? ` card--top card--top-${rank}` : '';
+    return el('li', { class: `card${podium}${upcoming ? ' card--upcoming' : ''}`, style: { '--i': Math.min(position, 12) } }, [
       el('details', {}, [
         el('summary', { class: 'card__summary' }, [
-          el('span', { class: 'card__rank', text: rank, 'aria-label': `Platz ${rank}` }),
-          Dyna.pokemonArt(pokemon, { eager: rank <= 4 }),
+          upcoming
+            ? el('span', { class: 'card__rank card__rank--upcoming', text: 'bald', 'aria-label': 'Angekündigt, noch ohne Platz' })
+            : el('span', { class: 'card__rank', text: rank, 'aria-label': `Platz ${rank}` }),
+          Dyna.pokemonArt(pokemon, { eager: position < 4 }),
           el('div', { class: 'card__info' }, [
-            el('h3', { class: 'card__name' }, [el('span', { text: pokemon.name }), Dyna.kindBadge(pokemon)]),
+            el('h3', { class: 'card__name' }, [el('span', { text: pokemon.name }), Dyna.kindBadge(pokemon), Dyna.upcomingBadge(pokemon), Dyna.regionBadge(pokemon)]),
             el('div', { class: 'card__types' }, pokemon.types.map((t) => Dyna.typeChip(t, data, true))),
             moveLine(role),
           ]),
@@ -165,42 +176,48 @@
     }
     const rows = hits.slice(0, 8).map((p) => {
       const places = TYPE_ORDER
-        .map((type) => ({ type, rank: rankedList(type).findIndex((r) => r.pokemon === p) + 1 }))
-        .filter((x) => x.rank > 0);
+        .map((type) => ({ type, entry: withRanks(rankedList(type)).find(({ role }) => role.pokemon === p) }))
+        .filter((x) => x.entry);
+      // Angekündigte haben noch keinen Platz; das Datum steht schon in der Marke neben dem Namen.
+      const placeText = (entry) => (entry.rank === null ? 'bald' : `Platz ${entry.rank}`);
       return el('li', { class: 'search-hits__row' }, [
         Dyna.pokemonArt(p, { size: 'sm' }),
         el('div', { class: 'search-hits__info' }, [
-          el('p', { class: 'search-hits__name' }, [el('span', { text: p.name }), Dyna.kindBadge(p)]),
+          el('p', { class: 'search-hits__name' }, [el('span', { text: p.name }), Dyna.kindBadge(p), Dyna.upcomingBadge(p), Dyna.regionBadge(p)]),
           places.length
-            ? el('div', { class: 'search-hits__places' }, places.map(({ type, rank }) => el('button', {
+            ? el('div', { class: 'search-hits__places' }, places.map(({ type, entry }) => el('button', {
               type: 'button',
               class: `type-chip type-chip--small type-${slugOf(type)}${type === state.type ? ' is-current' : ''}`,
               onclick: () => selectType(type),
-            }, [`${data.types[type]} · Platz ${rank}`])))
+            }, [`${data.types[type]} · ${placeText(entry)}`])))
             : el('p', { class: 'search-hits__none', text: 'Ohne Elite-Attacken in keiner Liste.' }),
         ]),
       ]);
     });
-    box.replaceChildren(
+    // replaceChildren würde ein null als Text "null" einfügen – deshalb vorher aussortieren.
+    box.replaceChildren(...[
       el('h2', { class: 'search-hits__title', text: `${hits.length} Treffer – antippen, um zum Typ zu springen` }),
       el('ul', { class: 'search-hits__list' }, rows),
       hits.length > 8 ? el('p', { class: 'search-hits__more', text: `… und ${hits.length - 8} weitere. Suche genauer eingrenzen.` }) : null,
-    );
+    ].filter(Boolean));
   }
 
   function renderRanking() {
     const main = document.getElementById('ranking');
-    const full = rankedList(state.type);
-    const list = full.filter((r) => matchesQuery(r.pokemon));
+    const list = withRanks(rankedList(state.type)).filter(({ role }) => matchesQuery(role.pokemon));
+    const upcomingCount = list.filter(({ rank }) => rank === null).length;
 
     const header = el('header', { class: `ranking__header type-${slugOf(state.type)}` }, [
       el('h2', {}, [el('span', { class: 'ranking__type', text: data.types[state.type] }), ' – die stärksten Angreifer']),
-      el('p', { class: 'ranking__count', text: `${list.length} Pokémon · ${data.maxMoves[state.type]}` }),
+      el('p', { class: 'ranking__count' }, [
+        `${list.length} Pokémon${upcomingCount ? `, davon ${upcomingCount} angekündigt` : ''} · `,
+        el('span', { class: 'ranking__move', text: data.maxMoves[state.type] }),
+      ]),
     ]);
 
     let body;
     if (list.length) {
-      body = el('ol', { class: 'ranking__list' }, list.map((role) => card(role, full.indexOf(role) + 1)));
+      body = el('ol', { class: 'ranking__list' }, list.map(({ role, rank }, position) => card(role, rank, position)));
     } else {
       body = el('div', { class: 'state' }, [
         el('p', { class: 'state__title', text: `Keine Treffer bei ${data.types[state.type]}.` }),
@@ -219,6 +236,7 @@
   }
 
   function render() {
+    renderMeta();
     renderTypeBar();
     renderKindCounts();
     renderSearchHits();
@@ -307,8 +325,13 @@
   function renderMeta() {
     const date = data.sources.gameMasterDate ? formatDate(data.sources.gameMasterDate) : 'unbekannt';
     const gmaxCount = data.pokemon.filter((p) => p.kind === 'gigantamax').length;
-    document.getElementById('data-meta').textContent =
-      `${data.pokemon.length - gmaxCount} Dynamax · ${gmaxCount} Gigadynamax · Spieldaten vom ${date}`;
+    const upcomingCount = data.pokemon.filter(isUpcoming).length;
+    document.getElementById('data-meta').textContent = [
+      `${data.pokemon.length - gmaxCount - upcomingCount} Dynamax`,
+      `${gmaxCount} Gigadynamax`,
+      upcomingCount ? `${upcomingCount} angekündigt` : null,
+      `Spieldaten vom ${date}`,
+    ].filter(Boolean).join(' · ');
   }
 
   function init() {
@@ -317,7 +340,6 @@
     state.type = typeFromHash() ?? state.type;
     readControls();
     recomputeRoles();
-    renderMeta();
     Dyna.renderSources(data);
     render();
     Dyna.enhanceScroller(document.getElementById('type-bar'));
