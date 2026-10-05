@@ -139,13 +139,16 @@ button { cursor: pointer; }
    Schwesterseite – bewusst kein dritter Reiter. Auf dem Handy füllen die Reiter die Breite. */
 .page-nav {
   display: flex;
+  flex-wrap: wrap; /* nur bei sehr großer Schrift oder starkem Zoom: dann rutscht der Knopf in eine zweite Zeile */
   align-items: stretch;
-  gap: 6px;
+  gap: 8px 6px;
   margin-bottom: 28px;
 }
 .page-nav__tabs {
   display: flex;
   flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--line);
@@ -181,6 +184,8 @@ button { cursor: pointer; }
   align-items: center;
   justify-content: center;
   gap: 5px;
+  min-height: 48px;
+  margin-left: auto;
   padding: 0 11px 0 10px;
   border: 1px solid #8f6bff80;
   border-radius: 999px;
@@ -191,14 +196,15 @@ button { cursor: pointer; }
   line-height: 1.15;
   white-space: nowrap;
   text-decoration: none;
-  transition: border-color .2s var(--ease), background .2s var(--ease);
+  transition: border-color .2s var(--ease), background-color .2s var(--ease);
 }
 .page-nav__sister-logo { flex: none; width: 14px; height: 20px; }
 .page-nav__sister-arrow { flex: none; width: 12px; height: 12px; color: #b9a6ff; transition: translate .2s var(--ease); }
 .page-nav__sister-text { display: flex; flex-direction: column; }
 .page-nav__sister-kicker,
 .page-nav__sister-name,
-.page-nav__sister-more {
+.page-nav__sister-more,
+.page-nav__sister-short {
   position: absolute;
   width: 1px; height: 1px;
   overflow: hidden;
@@ -208,19 +214,17 @@ button { cursor: pointer; }
 @media (hover: hover) {
   .page-nav__link:hover { color: var(--text); background: #ffffff0f; }
   .page-nav__link[aria-current="page"]:hover { background: var(--text); color: var(--bg); }
-  .page-nav__sister:hover { border-color: #8f6bffcc; background: #8f6bff3d; }
+  .page-nav__sister:hover { border-color: #8f6bffcc; background-color: #8f6bff1f; }
   .page-nav__sister:hover .page-nav__sister-arrow { translate: 2px -2px; }
 }
 
 /* Sehr schmale Handys: rundes Symbol mit Ei und Pfeil. */
 @media (max-width: 359.98px) {
   .page-nav__sister { width: 48px; gap: 2px; padding: 0; }
-  .page-nav__sister-short {
-    position: absolute;
-    width: 1px; height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
+}
+/* Handy: statt des vollen Namens nur "Raids". */
+@media (min-width: 360px) and (max-width: 559.98px) {
+  .page-nav__sister-short { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 }
 @media (min-width: 375px) {
   .page-nav__link { font-size: .875rem; }
@@ -243,15 +247,10 @@ button { cursor: pointer; }
     text-transform: uppercase;
     color: #b9a6ff;
   }
-  .page-nav__sister-short {
-    position: absolute;
-    width: 1px; height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
 }
 @media (forced-colors: active) {
   .page-nav__link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
+  .page-nav__sister-arrow { color: inherit; }
 }
 
 .hero__eyebrow {
