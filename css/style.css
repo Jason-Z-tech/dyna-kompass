@@ -135,31 +135,124 @@ button { cursor: pointer; }
 }
 .hero__glow--gmax { background: radial-gradient(circle, #ffc23d40, #ff2e6322 40%, transparent 65%); }
 
+/* Kopfleiste in einer Zeile: links die eigenen Seiten als Reiter, rechts abgesetzt der Link zur
+   Schwesterseite – bewusst kein dritter Reiter. Auf dem Handy füllen die Reiter die Breite. */
 .page-nav {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
   margin-bottom: 28px;
+}
+.page-nav__tabs {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #0b0d18cc;
   backdrop-filter: blur(8px);
 }
 .page-nav__link {
-  padding: 8px 16px;
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 8px;
   white-space: nowrap;
   border-radius: 999px;
   color: var(--muted);
   font-weight: 700;
-  font-size: .92rem;
+  font-size: .82rem;
   text-decoration: none;
   transition: background .2s var(--ease), color .2s var(--ease);
 }
-/* Auf dem Handy etwas schmaler, damit alle drei Links in eine Zeile passen. */
-@media (max-width: 420px) { .page-nav__link { padding: 8px 12px; } }
-.page-nav__link:hover { color: var(--text); background: #ffffff0f; }
 .page-nav__link[aria-current="page"] { background: var(--text); color: var(--bg); }
+.page-nav__link:focus-visible { outline-offset: 0; }
+
+/* Schwesterseite Raid-Kompass: lila wie deren Logo, mit dem Raid-Ei; der Pfeil heißt "andere Website".
+   Der Linktext ist immer vollständig ("Schwesterseite Raid-Kompass – Raids ab 5 Sternen"),
+   sichtbar ist je nach Breite nur ein Teil davon. */
+.page-nav__sister {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 11px 0 10px;
+  border: 1px solid #8f6bff80;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8f6bff33, #8f6bff0d);
+  color: var(--text);
+  font-weight: 700;
+  font-size: .82rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: border-color .2s var(--ease), background .2s var(--ease);
+}
+.page-nav__sister-logo { flex: none; width: 14px; height: 20px; }
+.page-nav__sister-arrow { flex: none; width: 12px; height: 12px; color: #b9a6ff; transition: translate .2s var(--ease); }
+.page-nav__sister-text { display: flex; flex-direction: column; }
+.page-nav__sister-kicker,
+.page-nav__sister-name,
+.page-nav__sister-more {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (hover: hover) {
+  .page-nav__link:hover { color: var(--text); background: #ffffff0f; }
+  .page-nav__link[aria-current="page"]:hover { background: var(--text); color: var(--bg); }
+  .page-nav__sister:hover { border-color: #8f6bffcc; background: #8f6bff3d; }
+  .page-nav__sister:hover .page-nav__sister-arrow { translate: 2px -2px; }
+}
+
+/* Sehr schmale Handys: rundes Symbol mit Ei und Pfeil. */
+@media (max-width: 359.98px) {
+  .page-nav__sister { width: 48px; gap: 2px; padding: 0; }
+  .page-nav__sister-short {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}
+@media (min-width: 375px) {
+  .page-nav__link { font-size: .875rem; }
+  .page-nav__sister { font-size: .875rem; }
+}
+/* Ab Tablet-Breite: Reiter links, Schwesterseite rechts mit vollem Namen. */
+@media (min-width: 560px) {
+  .page-nav { justify-content: space-between; gap: 8px; }
+  .page-nav__tabs { flex: none; }
+  .page-nav__link { flex: none; padding: 0 16px; font-size: .92rem; }
+  .page-nav__sister { gap: 10px; padding: 0 18px 0 16px; font-size: .92rem; }
+  .page-nav__sister-logo { width: 18px; height: 25px; }
+  .page-nav__sister-kicker,
+  .page-nav__sister-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .page-nav__sister-kicker {
+    font-family: var(--font-display);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #b9a6ff;
+  }
+  .page-nav__sister-short {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}
+@media (forced-colors: active) {
+  .page-nav__link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
+}
 
 .hero__eyebrow {
   margin: 0 0 6px;
