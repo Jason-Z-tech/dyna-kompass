@@ -137,6 +137,7 @@ button { cursor: pointer; }
 
 .page-nav {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   margin-bottom: 28px;
@@ -147,6 +148,7 @@ button { cursor: pointer; }
 }
 .page-nav__link {
   padding: 8px 16px;
+  white-space: nowrap;
   border-radius: 999px;
   color: var(--muted);
   font-weight: 700;
@@ -154,6 +156,8 @@ button { cursor: pointer; }
   text-decoration: none;
   transition: background .2s var(--ease), color .2s var(--ease);
 }
+/* Auf dem Handy etwas schmaler, damit alle drei Links in eine Zeile passen. */
+@media (max-width: 420px) { .page-nav__link { padding: 8px 12px; } }
 .page-nav__link:hover { color: var(--text); background: #ffffff0f; }
 .page-nav__link[aria-current="page"] { background: var(--text); color: var(--bg); }
 

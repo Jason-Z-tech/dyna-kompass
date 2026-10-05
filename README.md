@@ -8,6 +8,9 @@ Zwei Seiten für Max-Kämpfe in **Pokémon GO**:
 - **G-Max-Konter** (`konter.html`): für jeden Gigadynamax-Boss drei Team-Vorschläge
   (Voller Angriff · Ausgewogen · Sicher mit Heilung) und die besten Angreifer, Tanks und Heiler.
 
+Für normale Raids ab 5 Sternen (Legendäre, Mega- und Crypto-Raids) gibt es den
+[Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/) – beide Seiten verlinken sich gegenseitig.
+
 **Online:** https://jason-z-tech.github.io/dyna-kompass/
 
 ## Starten
@@ -29,7 +32,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html`, `konter.html` und
-`datenschutz.html` den Zusatz `?v=2026-10-04` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
+`datenschutz.html` den Zusatz `?v=2026-10-05` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
 (suchen und ersetzen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und neue
 Skripte mischen – die Seite bliebe für diese Besucher kurz leer. Nach einem reinen Daten-Update ist das nicht nötig.
 
