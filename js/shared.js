@@ -1,6 +1,6 @@
 'use strict';
 
-// Gemeinsame Bausteine für beide Seiten (Typ-Rangliste und G-Max-Konter).
+// Gemeinsame Bausteine für beide Seiten (Typ-Rangliste und Max-Konter).
 // Klassisches Skript statt ES-Modul, damit die Seite auch per Doppelklick (file://) läuft.
 
 const Dyna = (() => {

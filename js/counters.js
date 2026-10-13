@@ -1,6 +1,7 @@
 'use strict';
 
-// Seite "G-Max-Konter": Team-Vorschläge, Angreifer, Tanks und Heiler gegen einen Gigadynamax-Boss.
+// Seite "Max-Konter": Team-Vorschläge, Angreifer, Tanks und Heiler gegen einen Boss aus 5- oder 6-Sterne-Max-Kämpfen
+// (Gigadynamax bzw. legendäre Dynamax).
 
 (() => {
   const { el, TYPE_ORDER, formatNumber, formatDate, formatFactor, slugOf } = Dyna;
@@ -12,12 +13,23 @@
     { id: 'healers', label: 'Heiler' },
   ];
 
-  const state = { bossKey: null, includeElite: true, tab: 'attackers' };
+  const TIER_LABEL = { 6: 'Gigadynamax-Boss · 6-Sterne-Max-Kampf', 5: 'Legendärer Dynamax-Boss · 5-Sterne-Max-Kampf' };
+
+  const state = { bossKey: null, tier: 6, includeElite: true, tab: 'attackers' };
   let data = null;
   let bosses = [];
+  let barTier = null; // Stufe, deren Bosse gerade in der Leiste stehen
+  let updateArrows = () => {};
+  const lastBoss = {}; // zuletzt gewählter Boss je Stufe
 
   const bossSlug = (boss) => (boss.formId ?? boss.speciesId).toLowerCase();
-  const currentBoss = () => bosses.find((b) => b.key === state.bossKey) ?? bosses[0];
+  const tierBosses = (tier) => bosses.filter((b) => b.bossTier === tier);
+  const currentBoss = () => bosses.find((b) => b.key === state.bossKey) ?? tierBosses(state.tier)[0];
+  // Erster Boss einer Stufe: Glurak bei Gigadynamax, sonst der erste schon erschienene.
+  const defaultBoss = (tier) => {
+    const list = tierBosses(tier);
+    return (list.find((b) => b.speciesId === 'CHARIZARD') ?? list.find((b) => !Dyna.isUpcoming(b)) ?? list[0]).key;
+  };
 
   // ---------- Berechnung ----------
 
@@ -142,8 +154,9 @@
 
   function renderBossBar() {
     const bar = document.getElementById('boss-bar');
-    if (!bar.children.length) {
-      bar.append(...bosses.map((boss) => el('button', {
+    if (barTier !== state.tier) {
+      barTier = state.tier;
+      bar.replaceChildren(...tierBosses(state.tier).map((boss) => el('button', {
         type: 'button',
         class: 'boss-btn',
         'data-boss': boss.key,
@@ -154,8 +167,20 @@
         el('span', { class: 'boss-btn__types' }, boss.types.map((t) => el('span', { class: `type-dot type-${slugOf(t)}`, title: data.types[t] }))),
         Dyna.upcomingBadge(boss),
       ])));
+      bar.scrollLeft = 0;
+      updateArrows();
     }
     for (const btn of bar.children) btn.setAttribute('aria-pressed', String(btn.dataset.boss === currentBoss().key));
+    for (const input of document.querySelectorAll('input[name=tier]')) input.checked = Number(input.value) === state.tier;
+  }
+
+  // Hinweis für angekündigte und für regionale Bosse – die Konter lassen sich trotzdem schon vorbereiten.
+  function bossNote(boss) {
+    const where = boss.region ? `nur in ${boss.region}` : 'für alle';
+    if (Dyna.isUpcoming(boss)) {
+      return el('p', { class: 'boss__note', text: `Angekündigt: ${where} ab ${formatDate(boss.releaseDate)}. Die Konter kannst du schon jetzt vorbereiten.` });
+    }
+    return boss.region ? el('p', { class: 'boss__note', text: `Erscheint nur in: ${boss.region}.` }) : null;
   }
 
   function factorList(entries) {
@@ -170,13 +195,10 @@
     return el('section', { class: 'boss', 'aria-labelledby': 'boss-name' }, [
       Dyna.pokemonArt(boss, { size: 'lg', eager: true }),
       el('div', { class: 'boss__info' }, [
-        el('p', { class: 'boss__label', text: 'Gigadynamax-Boss · 6-Sterne-Max-Kampf' }),
+        el('p', { class: 'boss__label', text: TIER_LABEL[boss.bossTier] }),
         el('h2', { class: 'boss__name', id: 'boss-name', text: boss.name }),
         el('div', { class: 'card__types' }, boss.types.map((t) => Dyna.typeChip(t, data))),
-        // Angekündigte Bosse: Die Konter lassen sich schon vorbereiten.
-        Dyna.isUpcoming(boss)
-          ? el('p', { class: 'boss__note', text: `Angekündigt: für alle ab ${formatDate(boss.releaseDate)}. Die Konter kannst du schon jetzt vorbereiten.` })
-          : null,
+        bossNote(boss),
         el('div', { class: 'boss__facts' }, [
           el('div', {}, [el('h3', { text: 'Schwach gegen' }), factorList(weak)]),
           el('div', {}, [el('h3', { text: 'Resistent gegen' }), factorList(strong)]),
@@ -282,6 +304,7 @@
   function render() {
     const boss = currentBoss();
     state.bossKey = boss.key;
+    state.tier = boss.bossTier;
     renderBossBar();
     const result = analyse(boss);
     document.getElementById('counters').replaceChildren(bossPanel(boss, result), teamsSection(result), listsSection(result));
@@ -319,14 +342,24 @@
     return bosses.find((b) => bossSlug(b) === slug)?.key ?? null;
   }
 
+  // Wechsel zwischen 6 und 5 Sternen: zuletzt gewählter Boss dieser Stufe, sonst der erste.
+  function selectTier(tier) {
+    lastBoss[state.tier] = state.bossKey;
+    state.tier = tier;
+    selectBoss(lastBoss[tier] ?? defaultBoss(tier));
+    document.querySelector(`input[name=tier][value="${tier}"]`).focus();
+  }
+
   function init() {
     data = Dyna.loadData('counters');
     if (!data) return;
-    bosses = data.pokemon.filter((p) => p.kind === 'gigantamax');
-    state.bossKey = bossFromHash() ?? bosses.find((b) => b.speciesId === 'CHARIZARD')?.key ?? bosses[0].key;
+    bosses = data.pokemon.filter((p) => p.bossTier);
+    state.bossKey = bossFromHash() ?? defaultBoss(6);
+    for (const tier of [6, 5]) document.querySelector(`[data-tier-count="${tier}"]`).textContent = tierBosses(tier).length;
+    for (const input of document.querySelectorAll('input[name=tier]')) input.addEventListener('change', () => selectTier(Number(input.value)));
     Dyna.renderSources(data);
+    updateArrows = Dyna.enhanceScroller(document.getElementById('boss-bar'));
     render();
-    Dyna.enhanceScroller(document.getElementById('boss-bar'));
     const bar = document.getElementById('boss-bar');
     Dyna.centerInScroller(bar, bar.querySelector(`[data-boss="${state.bossKey}"]`));
     window.addEventListener('hashchange', () => {

@@ -801,7 +801,14 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .state .reset-btn { margin-top: 8px; }
 .state--error { border-color: #ff2e6399; }
 
-/* ---------- G-Max-Konter ---------- */
+/* ---------- Max-Konter ---------- */
+
+/* Umschalter 6 Sterne (Gigadynamax) / 5 Sterne (legendäre Dynamax) über der Boss-Leiste. */
+.boss-tiers { max-width: var(--page); margin: 0 auto 6px; padding: 0 16px; }
+.boss-tiers .segmented__options { max-width: 520px; }
+.boss-tiers label > span { flex-direction: column; gap: 1px; line-height: 1.15; }
+.boss-tiers small span { display: inline; min-height: 0; padding: 0; color: inherit; font-size: inherit; font-weight: inherit; }
+.boss-tiers input[value="6"]:checked + span { background: var(--gmax); color: #1b1300; }
 
 .boss-btn {
   display: grid;

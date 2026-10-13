@@ -66,7 +66,7 @@ const TODAY = localIsoDay(new Date());
 
 // Name -> Art, Erscheinungstag und Region, direkt aus den Daten der Seite.
 const pokemonFacts = async (page) => new Map((await page.eval(
-  `window.POKEMON_DATA.pokemon.map((p) => [p.name, { key: p.key, kind: p.kind, releaseDate: p.releaseDate, region: p.region ?? null }])`)));
+  `window.POKEMON_DATA.pokemon.map((p) => [p.name, { key: p.key, kind: p.kind, bossTier: p.bossTier, releaseDate: p.releaseDate, region: p.region ?? null }])`)));
 
 // Namen aller Pokémon, die an diesem Tag noch nicht erschienen sind – unabhängig von der Seite berechnet.
 const upcomingAt = (facts, day) => new Set([...facts].filter(([, f]) => f.releaseDate && f.releaseDate > day).map(([name]) => name));
@@ -231,6 +231,8 @@ async function testRanking(page, vp) {
 const counterState = (page) => page.eval(`(() => ({
   boss: document.querySelector('.boss-btn[aria-pressed="true"]')?.dataset.boss,
   bossName: document.getElementById('boss-name')?.textContent,
+  label: document.querySelector('.boss__label')?.textContent,
+  tier: document.querySelector('input[name=tier]:checked')?.value,
   teams: [...document.querySelectorAll('.team')].map((t) => [...t.querySelectorAll('.member')].map((m) => ({
     role: m.className.replace('member member--', ''),
     name: m.querySelector('.member__name span:last-child').textContent,
@@ -246,24 +248,48 @@ async function testCounters(page, vp) {
   const tag = `[${vp.label} · Konter]`;
   console.log(`${tag} läuft …`);
   await page.goto(url('konter.html'));
-  const bosses = await page.eval(`[...document.querySelectorAll('.boss-btn')].map((b) => b.dataset.boss)`);
+  // Zwei Stufen: 6 Sterne = alle Gigadynamax-Pokémon, 5 Sterne = legendäre Dynamax (ohne Dakuma/Wulaosu).
+  const TIER_LABEL = { 6: 'Gigadynamax-Boss · 6-Sterne-Max-Kampf', 5: 'Legendärer Dynamax-Boss · 5-Sterne-Max-Kampf' };
   const gmaxKeys = await page.eval(`window.POKEMON_DATA.pokemon.filter((p) => p.kind === 'gigantamax').map((p) => p.key)`);
-  check(gmaxKeys.length >= 18 && JSON.stringify(bosses) === JSON.stringify(gmaxKeys),
-    `${tag} ein Boss-Knopf je Gigadynamax-Pokémon erwartet (${gmaxKeys.length}), gefunden: ${bosses.length}`);
+  for (const tier of [6, 5]) {
+    await page.click(`label:has(input[name=tier][value="${tier}"])`);
+    const bosses = await page.eval(`[...document.querySelectorAll('.boss-btn')].map((b) => b.dataset.boss)`);
+    const expected = await page.eval(`window.POKEMON_DATA.pokemon.filter((p) => p.bossTier === ${tier}).map((p) => p.key)`);
+    const count = await page.eval(`document.querySelector('[data-tier-count="${tier}"]').textContent`);
+    check(JSON.stringify(bosses) === JSON.stringify(expected) && count === String(expected.length),
+      `${tag} ${tier} Sterne: ${bosses.length} Boss-Knöpfe, erwartet ${expected.length} (Zähler ${count})`);
+    if (tier === 6) check(JSON.stringify(expected) === JSON.stringify(gmaxKeys), `${tag} 6 Sterne sind nicht genau die Gigadynamax-Pokémon`);
+    else check(expected.length >= 15 && expected.every((k) => k.startsWith('dynamax-')) && !expected.some((k) => /kubfu|urshifu/.test(k)),
+      `${tag} 5 Sterne: falsche Bosse ${expected.join(', ')}`);
 
-  for (const key of bosses) {
-    await page.click(`.boss-btn[data-boss="${key}"]`);
-    const s = await counterState(page);
-    const btnName = await page.eval(`document.querySelector('.boss-btn[data-boss="${key}"] .boss-btn__name').textContent`);
-    check(s.boss === key && s.bossName.includes(btnName), `${tag} Boss ${key}: Auswahl/Überschrift falsch (${s.bossName})`);
-    check(s.teams.length === 3 && s.teams.every((t) => t.length === 3), `${tag} Boss ${key}: nicht 3 Teams à 3`);
-    const [attack, balanced, safe] = s.teams;
-    check(attack.every((m) => m.role === 'attacker'), `${tag} Boss ${key}: Voller Angriff enthält Nicht-Angreifer`);
-    check(balanced.filter((m) => m.role === 'tank').length === 1, `${tag} Boss ${key}: Ausgewogen ohne genau 1 Tank`);
-    check(safe.some((m) => m.role === 'healer') && safe.some((m) => m.role === 'tank'), `${tag} Boss ${key}: Sicher ohne Tank+Heiler`);
-    check(s.teams.every((t) => new Set(t.map((m) => m.name)).size === t.length), `${tag} Boss ${key}: doppeltes Pokémon im Team`);
-    check(s.rows === 12, `${tag} Boss ${key}: ${s.rows} statt 12 Zeilen`);
+    for (const key of bosses) {
+      await page.click(`.boss-btn[data-boss="${key}"]`);
+      const s = await counterState(page);
+      const btnName = await page.eval(`document.querySelector('.boss-btn[data-boss="${key}"] .boss-btn__name').textContent`);
+      check(s.boss === key && s.bossName.includes(btnName), `${tag} Boss ${key}: Auswahl/Überschrift falsch (${s.bossName})`);
+      check(s.tier === String(tier) && s.label === TIER_LABEL[tier], `${tag} Boss ${key}: Stufe ${s.tier}, Zeile "${s.label}"`);
+      check(s.teams.length === 3 && s.teams.every((t) => t.length === 3), `${tag} Boss ${key}: nicht 3 Teams à 3`);
+      const [attack, balanced, safe] = s.teams;
+      check(attack.every((m) => m.role === 'attacker'), `${tag} Boss ${key}: Voller Angriff enthält Nicht-Angreifer`);
+      check(balanced.filter((m) => m.role === 'tank').length === 1, `${tag} Boss ${key}: Ausgewogen ohne genau 1 Tank`);
+      check(safe.some((m) => m.role === 'healer') && safe.some((m) => m.role === 'tank'), `${tag} Boss ${key}: Sicher ohne Tank+Heiler`);
+      check(s.teams.every((t) => new Set(t.map((m) => m.name)).size === t.length), `${tag} Boss ${key}: doppeltes Pokémon im Team`);
+      check(s.rows === 12, `${tag} Boss ${key}: ${s.rows} statt 12 Zeilen`);
+    }
   }
+
+  // Die Stufe merkt sich ihren Boss: 5 Sterne → Zapdos, 6 Sterne → zurück zu Gigadynamax, wieder 5 → Zapdos.
+  await page.click('label:has(input[name=tier][value="5"])');
+  await page.click('.boss-btn[data-boss="dynamax-zapdos"]');
+  await page.click('label:has(input[name=tier][value="6"])');
+  let s = await counterState(page);
+  const sixBoss = s.boss;
+  check(s.tier === '6' && gmaxKeys.includes(sixBoss), `${tag} Wechsel zu 6 Sternen zeigt ${s.boss}`);
+  await page.click('label:has(input[name=tier][value="5"])');
+  s = await counterState(page);
+  check(s.tier === '5' && s.boss === 'dynamax-zapdos' && (await page.eval('location.hash')) === '#boss=zapdos', `${tag} 5 Sterne merkt sich Zapdos nicht (${s.boss})`);
+  await page.click('label:has(input[name=tier][value="6"])');
+  check((await counterState(page)).boss === sixBoss, `${tag} 6 Sterne merkt sich ${sixBoss} nicht`);
 
   // Rollen-Tabs per Maus
   for (const [label, metric] of [['Tanks', 'Hält aus'], ['Heiler', 'Heilwert'], ['Angreifer', 'Schaden gegen Boss']]) {
@@ -274,7 +300,7 @@ async function testCounters(page, vp) {
   // Rollen-Tabs per Tastatur
   await page.eval(`document.querySelector('.tabs__btn[aria-selected="true"]').focus()`);
   await page.key('ArrowRight');
-  let s = await counterState(page);
+  s = await counterState(page);
   check(s.tab === 'Tanks', `${tag} Pfeiltaste wechselt Tab nicht (${s.tab})`);
   check(await page.eval(`document.activeElement?.id === 'tab-tanks'`), `${tag} Fokus bleibt nicht auf dem Tab`);
   await page.key('ArrowLeft');
@@ -287,10 +313,13 @@ async function testCounters(page, vp) {
   s = await counterState(page);
   check(s.elite === true, `${tag} Elite lässt sich nicht wieder einschalten`);
 
-  // Direktlink
+  // Direktlinks – auch zu einem 5-Sterne-Boss (die Stufe stellt sich mit ein).
   await page.goto(url('konter.html', '#boss=gengar'));
   s = await counterState(page);
-  check(s.bossName === 'Gigadynamax-Gengar', `${tag} Link #boss=gengar öffnet ${s.bossName}`);
+  check(s.bossName === 'Gigadynamax-Gengar' && s.tier === '6', `${tag} Link #boss=gengar öffnet ${s.bossName}`);
+  await page.goto(url('konter.html', '#boss=lugia'));
+  s = await counterState(page);
+  check(s.bossName === 'Lugia' && s.tier === '5' && s.boss === 'dynamax-lugia', `${tag} Link #boss=lugia öffnet ${s.bossName} (Stufe ${s.tier})`);
 
   // Navigation zurück
   await page.click('.page-nav__link[href="index.html"]');
@@ -395,12 +424,14 @@ async function testUpcoming(page, vp) {
   const announcedGmax = [...facts].filter(([, f]) => f.kind === 'gigantamax' && f.releaseDate);
   for (const [name, f] of announcedGmax) await checkSearchAndDetails(name, f.releaseDate, 'Gigadynamax');
 
-  // Angekündigte Gigadynamax-Bosse: bis zum Erscheinungstag Marke am Boss-Knopf und Hinweis beim Boss –
-  // die Konter lassen sich trotzdem schon ansehen. Ab dem Tag ist beides weg.
-  for (const [name, f] of announcedGmax) {
+  // Angekündigte Bosse (5 und 6 Sterne): bis zum Erscheinungstag Marke am Boss-Knopf und Hinweis beim Boss –
+  // die Konter lassen sich trotzdem schon ansehen. Ab dem Tag ist die Marke weg; bei regionalen Bossen bleibt
+  // der Hinweis auf die Region.
+  for (const [name, f] of [...facts].filter(([, x]) => x.bossTier && x.releaseDate && x.releaseDate > TODAY)) {
     for (const [day, time, upcoming] of [[dayBefore(f.releaseDate), '23:30', true], [f.releaseDate, '00:30', false]]) {
       await page.setToday(day, time);
       await page.goto(url('konter.html'));
+      await page.click(`label:has(input[name=tier][value="${f.bossTier}"])`);
       await page.click(`.boss-btn[data-boss="${f.key}"]`);
       const b = await page.eval(`({
         badge: document.querySelector('.boss-btn[data-boss="${f.key}"] .badge--upcoming')?.textContent ?? null,
@@ -408,9 +439,10 @@ async function testUpcoming(page, vp) {
         name: document.getElementById('boss-name').textContent,
         rows: document.querySelectorAll('#role-panel > li').length,
       })`);
+      const where = f.region ? `nur in ${f.region}` : 'für alle';
       const marked = upcoming
-        ? isUpcomingBadge(b.badge, f.releaseDate, day) && (b.note ?? '').startsWith('Angekündigt: für alle ab ')
-        : b.badge === null && b.note === null;
+        ? isUpcomingBadge(b.badge, f.releaseDate, day) && (b.note ?? '').startsWith(`Angekündigt: ${where} ab `)
+        : b.badge === null && b.note === (f.region ? `Erscheint nur in: ${f.region}.` : null);
       check(b.name === name && b.rows > 0 && marked, `${tag} ${day} ${time}: Boss ${name} zeigt Marke "${b.badge}" und Hinweis "${b.note}"`);
     }
   }

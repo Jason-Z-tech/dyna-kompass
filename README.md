@@ -5,8 +5,11 @@ Zwei Seiten für Max-Kämpfe in **Pokémon GO**:
 - **Typ-Rangliste** (`index.html`): die stärksten Dynamax- und Gigadynamax-Angreifer für jeden der 18 Typen,
   mit Basiswerten, WP auf Level 40/50 und allen Attacken. Suche über alle Typen, Filter, Sortierung.
   Angekündigte Pokémon stehen schon in der Liste, markiert mit „Ab 24. Oktober“ und noch ohne Platz.
-- **G-Max-Konter** (`konter.html`): für jeden Gigadynamax-Boss drei Team-Vorschläge
+- **Max-Konter** (`konter.html`): für jeden Boss aus 6-Sterne-Max-Kämpfen (Gigadynamax) und 5-Sterne-Max-Kämpfen
+  (legendäre Dynamax wie Arktos, Lugia, Selfe oder Dialga) drei Team-Vorschläge
   (Voller Angriff · Ausgewogen · Sicher mit Heilung) und die besten Angreifer, Tanks und Heiler.
+  Ein Umschalter über der Boss-Leiste wechselt zwischen 6 und 5 Sternen; angekündigte und regionale Bosse
+  tragen einen Hinweis.
 
 Für normale Raids ab 5 Sternen (Legendäre, Mega- und Crypto-Raids) gibt es den
 [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/) – beide Seiten verlinken sich gegenseitig.
@@ -16,7 +19,7 @@ Für normale Raids ab 5 Sternen (Legendäre, Mega- und Crypto-Raids) gibt es den
 ## Starten
 
 Lokal: `index.html` doppelklicken. Die Seite braucht keinen Server und keine Installation.
-Direktlinks: `index.html#typ=water`, `konter.html#boss=gengar`.
+Direktlinks: `index.html#typ=water`, `konter.html#boss=gengar` (6 Sterne), `konter.html#boss=lugia` (5 Sterne).
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -32,7 +35,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html`, `konter.html` und
-`datenschutz.html` den Zusatz `?v=2026-10-13` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
+`datenschutz.html` den Zusatz `?v=2026-10-13-2` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
 (suchen und ersetzen; am selben Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und neue
 Skripte mischen – die Seite bliebe für diese Besucher kurz leer. Nach einem reinen Daten-Update ist das nicht nötig.
 
@@ -80,7 +83,7 @@ Dynamax-Pokémon, die das Wiki schon mit festem Datum ankündigt, nimmt das Date
 
 - stehen sie in der Typ-Rangliste an der Stelle, an der sie einsteigen werden – mit der Marke „Ab 24. Oktober“,
   aber ohne Platznummer. Die Plätze zeigen also immer, was heute einsetzbar ist.
-- zählen sie bei den G-Max-Kontern nicht mit (weder in den Team-Vorschlägen noch in den Rollen-Listen).
+- zählen sie bei den Max-Kontern nicht mit (weder in den Team-Vorschlägen noch in den Rollen-Listen).
 
 Die Seite vergleicht dafür das Datum des Geräts mit dem Erscheinungstag und schaltet das Pokémon am Tag selbst
 frei – ohne neuen Build und ohne Push. Ein `--refresh` braucht es erst wieder, wenn das Wiki Neues ankündigt
@@ -89,7 +92,7 @@ oder sich ein Datum ändert.
 Gigadynamax-Pokémon führt das Wiki erst nach ihrem Erscheinen (ohne Datum). Angekündigte trägt deshalb die
 von Hand gepflegte Liste `ANNOUNCED_GMAX` oben in `scripts/build-data.mjs` ein – mit dem Tag, ab dem alle sie
 bekommen können, und einer offiziellen Quelle (Beispiel: Gigadynamax-Duraludon ab 14.11.2026). Bis dahin stehen
-sie bei den G-Max-Kontern schon als Boss zur Auswahl (mit Marke „Ab 14. November“ und Hinweis), zählen aber
+sie bei den Max-Kontern schon als Boss zur Auswahl (mit Marke „Ab 14. November“ und Hinweis), zählen aber
 noch nicht als Konter. Sobald das Wiki sie als erschienen führt, meldet das Skript, dass die Zeile weg kann.
 
 ### Korrekturen zum Wiki (`RELEASE_NOTES`)
@@ -116,7 +119,11 @@ auf [pokemongo.com](https://pokemongo.com/de/news) lesen, den Eintrag mit Quelle
 
 Die Werte sind ein Vergleich untereinander, keine exakte Schadensberechnung gegen einen bestimmten Boss.
 
-**G-Max-Konter** (Typ-Effektivität aus den Spieldaten):
+**Max-Konter** (Typ-Effektivität aus den Spieldaten):
+
+- **Bosse:** 6 Sterne sind alle Gigadynamax-Pokémon, 5 Sterne alle legendären Dynamax-Pokémon (Klasse aus den
+  Spieldaten) – außer denen in `NOT_MAX_BATTLE_BOSSES` in `scripts/build-data.mjs` (Dakuma gab es nur über
+  Spezialforschung, Wulaosu nur als Entwicklung). Das Daten-Skript schreibt die Stufe als `bossTier` in die Daten.
 
 - **Angreifer:** Max-Schaden × Effektivität der besten Max-Attacke gegen die Boss-Typen.
 - **Tanks:** Verteidigung × (KP + 3 Dyna-Wall-Schilde à 60 KP) ÷ durchschnittliche Wirkung der Boss-Lade-Attacken.
@@ -128,13 +135,13 @@ Die Werte sind ein Vergleich untereinander, keine exakte Schadensberechnung gege
 
 ```
 index.html                Seite Typ-Rangliste
-konter.html               Seite G-Max-Konter
+konter.html               Seite Max-Konter (5 und 6 Sterne)
 datenschutz.html          Datenschutzerklärung
 assets/favicon.svg        Seiten-Icon (eigenes Design)
 css/style.css             Design (beide Seiten)
 js/shared.js              gemeinsame Bausteine und Kampf-Logik
 js/app.js                 Typ-Rangliste: Filter, Suche, Sortierung
-js/counters.js            G-Max-Konter: Teams, Rollen-Listen
+js/counters.js            Max-Konter: Stufen, Teams, Rollen-Listen
 tests/e2e.mjs             Klick-Test aller Knöpfe
 tests/browser.mjs         steuert Chrome für den Test
 data/pokemon-data.js      erzeugte Daten (nicht von Hand bearbeiten)

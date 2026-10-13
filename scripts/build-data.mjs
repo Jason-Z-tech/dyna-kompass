@@ -124,6 +124,9 @@ const ANNOUNCED_GMAX = [
   // „Naturzone: Global“ am 14./15.11.2026: https://pokemongo.com/de/gowildarea/global
   { name: 'Duraludon', releaseDate: '2026-11-14' },
 ];
+// Legendäre Dynamax-Pokémon, die nie Boss eines Max-Kampfs waren: Dakuma gab es nur über Spezialforschung,
+// Wulaosu nur als Entwicklung daraus.
+const NOT_MAX_BATTLE_BOSSES = new Set(['KUBFU', 'URSHIFU']);
 // So schlicht kündigt das Wiki an, wenn ein Pokémon einfach überall erscheint. Jeder andere Satz
 // (ein Event, Regionen, Tickets) kann heißen, dass das Wiki-Datum nicht für alle gilt.
 const WIKI_PLAIN_RELEASE = /^Dynamax [^.]* will be released\.$/;
@@ -377,6 +380,14 @@ function gmaxMoveFor(index, speciesId, formId) {
   return index.gmaxMoves.get(`${speciesId}|${form}`) ?? index.gmaxMoves.get(`${speciesId}|`) ?? null;
 }
 
+// Stufe des Max-Kampfs, in dem das Pokémon als Boss auftritt: Gigadynamax 6 Sterne, legendäre Dynamax 5 Sterne.
+// Sonst null – Bosse mit 1 bis 3 Sternen zeigt die Seite nicht.
+function bossTierOf(settings, kind) {
+  if (kind === 'gigantamax') return 6;
+  const legendary = ['POKEMON_CLASS_LEGENDARY', 'POKEMON_CLASS_MYTHIC'].includes(settings.pokemonClass);
+  return legendary && !NOT_MAX_BATTLE_BOSSES.has(settings.pokemonId) ? 5 : null;
+}
+
 // ---------- Kennzahlen ----------
 
 function effectiveStats(base, cpm) {
@@ -515,6 +526,8 @@ function buildEntry(index, source, kind, moveNames) {
     releaseDate: source.releaseDate ?? null,
     // Weltregion, in der das Pokémon ausschließlich erscheint (aus RELEASE_NOTES), sonst null.
     region: source.region ?? null,
+    // Boss eines 5- oder 6-Sterne-Max-Kampfs (Seite Max-Konter), sonst null.
+    bossTier: bossTierOf(settings, kind),
   };
 
   if (kind === 'gigantamax') {
