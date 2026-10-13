@@ -101,7 +101,10 @@
           el('div', {}, [el('dt', { text: 'WP Level 50' }), el('dd', { text: formatNumber(pokemon.cp50) })]),
           el('div', {}, [el('dt', { text: 'KP Level 40' }), el('dd', { text: formatNumber(pokemon.hp40) })]),
           pokemon.releaseDate
-            ? el('div', {}, [el('dt', { text: isUpcoming(pokemon) ? 'Dynamax ab' : 'Dynamax seit' }), el('dd', { class: 'facts__date', text: formatDate(pokemon.releaseDate) })])
+            ? el('div', {}, [
+              el('dt', { text: `${pokemon.kind === 'gigantamax' ? 'Gigadynamax' : 'Dynamax'} ${isUpcoming(pokemon) ? 'ab' : 'seit'}` }),
+              el('dd', { class: 'facts__date', text: formatDate(pokemon.releaseDate) }),
+            ])
             : null,
         ]),
       ]),
@@ -324,11 +327,12 @@
 
   function renderMeta() {
     const date = data.sources.gameMasterDate ? formatDate(data.sources.gameMasterDate) : 'unbekannt';
-    const gmaxCount = data.pokemon.filter((p) => p.kind === 'gigantamax').length;
+    // Erschienene je Art; Angekündigte (beider Arten) zählen extra.
+    const released = (kind) => data.pokemon.filter((p) => p.kind === kind && !isUpcoming(p)).length;
     const upcomingCount = data.pokemon.filter(isUpcoming).length;
     document.getElementById('data-meta').textContent = [
-      `${data.pokemon.length - gmaxCount - upcomingCount} Dynamax`,
-      `${gmaxCount} Gigadynamax`,
+      `${released('dynamax')} Dynamax`,
+      `${released('gigantamax')} Gigadynamax`,
       upcomingCount ? `${upcomingCount} angekündigt` : null,
       `Spieldaten vom ${date}`,
     ].filter(Boolean).join(' · ');

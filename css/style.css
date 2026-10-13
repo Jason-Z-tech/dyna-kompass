@@ -819,6 +819,7 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .boss-btn[aria-pressed="true"] { border-color: var(--gmax); background: linear-gradient(160deg, #ffc23d2e, var(--panel)); box-shadow: 0 10px 24px -14px var(--gmax); }
 .boss-btn__name { font-size: .78rem; font-weight: 700; line-height: 1.2; text-align: center; }
 .boss-btn__types { display: flex; gap: 4px; }
+.boss-btn .badge--upcoming { font-size: .62rem; padding: 1px 6px; }
 
 .boss {
   display: grid;
@@ -836,6 +837,7 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .boss__info { width: 100%; min-width: 0; }
 .boss__label { margin: 0; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gmax); }
 .boss__name { margin: 2px 0 8px; font-family: var(--font-display); font-size: clamp(1.7rem, 6vw, 2.4rem); line-height: 1.1; }
+.boss__note { margin: 10px 0 0; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed #a3a8ccb3; background: #ffffff0a; font-size: .9rem; }
 .boss__facts { display: grid; gap: 14px; margin-top: 12px; }
 .boss__facts h3 { margin: 0 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .factor-list { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -32,7 +32,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html`, `konter.html` und
-`datenschutz.html` den Zusatz `?v=2026-10-05-3` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
+`datenschutz.html` den Zusatz `?v=2026-10-13` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
 (suchen und ersetzen; am selben Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und neue
 Skripte mischen – die Seite bliebe für diese Besucher kurz leer. Nach einem reinen Daten-Update ist das nicht nötig.
 
@@ -84,7 +84,13 @@ Dynamax-Pokémon, die das Wiki schon mit festem Datum ankündigt, nimmt das Date
 
 Die Seite vergleicht dafür das Datum des Geräts mit dem Erscheinungstag und schaltet das Pokémon am Tag selbst
 frei – ohne neuen Build und ohne Push. Ein `--refresh` braucht es erst wieder, wenn das Wiki Neues ankündigt
-oder sich ein Datum ändert. Gigadynamax-Pokémon haben im Wiki kein Datum und kommen erst nach ihrem Erscheinen dazu.
+oder sich ein Datum ändert.
+
+Gigadynamax-Pokémon führt das Wiki erst nach ihrem Erscheinen (ohne Datum). Angekündigte trägt deshalb die
+von Hand gepflegte Liste `ANNOUNCED_GMAX` oben in `scripts/build-data.mjs` ein – mit dem Tag, ab dem alle sie
+bekommen können, und einer offiziellen Quelle (Beispiel: Gigadynamax-Duraludon ab 14.11.2026). Bis dahin stehen
+sie bei den G-Max-Kontern schon als Boss zur Auswahl (mit Marke „Ab 14. November“ und Hinweis), zählen aber
+noch nicht als Konter. Sobald das Wiki sie als erschienen führt, meldet das Skript, dass die Zeile weg kann.
 
 ### Korrekturen zum Wiki (`RELEASE_NOTES`)
 

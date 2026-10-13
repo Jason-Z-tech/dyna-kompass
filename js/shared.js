@@ -53,7 +53,7 @@ const Dyna = (() => {
   }
 
   // Angekündigt, aber noch nicht erschienen: Der Erscheinungstag liegt nach dem heutigen Tag.
-  // Gigadynamax-Einträge tragen kein Datum und gelten immer als erschienen.
+  // Erschienene Gigadynamax-Einträge tragen kein Datum (nur angekündigte haben eines).
   const isUpcoming = (pokemon) => Boolean(pokemon.releaseDate) && pokemon.releaseDate > todayIso();
 
   // ---------- Kampf-Logik ----------

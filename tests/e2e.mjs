@@ -64,9 +64,9 @@ const dayBefore = (isoDay) => new Date(Date.parse(`${isoDay}T00:00:00Z`) - 86400
 // auch in einer anderen Zeitzone und wenn der Lauf über Mitternacht geht.
 const TODAY = localIsoDay(new Date());
 
-// Name -> Erscheinungstag und Region, direkt aus den Daten der Seite.
+// Name -> Art, Erscheinungstag und Region, direkt aus den Daten der Seite.
 const pokemonFacts = async (page) => new Map((await page.eval(
-  `window.POKEMON_DATA.pokemon.map((p) => [p.name, { releaseDate: p.releaseDate, region: p.region ?? null }])`)));
+  `window.POKEMON_DATA.pokemon.map((p) => [p.name, { key: p.key, kind: p.kind, releaseDate: p.releaseDate, region: p.region ?? null }])`)));
 
 // Namen aller Pokémon, die an diesem Tag noch nicht erschienen sind – unabhängig von der Seite berechnet.
 const upcomingAt = (facts, day) => new Set([...facts].filter(([, f]) => f.releaseDate && f.releaseDate > day).map(([name]) => name));
@@ -247,7 +247,9 @@ async function testCounters(page, vp) {
   console.log(`${tag} läuft …`);
   await page.goto(url('konter.html'));
   const bosses = await page.eval(`[...document.querySelectorAll('.boss-btn')].map((b) => b.dataset.boss)`);
-  check(bosses.length === 18, `${tag} 18 Boss-Knöpfe erwartet, gefunden: ${bosses.length}`);
+  const gmaxKeys = await page.eval(`window.POKEMON_DATA.pokemon.filter((p) => p.kind === 'gigantamax').map((p) => p.key)`);
+  check(gmaxKeys.length >= 18 && JSON.stringify(bosses) === JSON.stringify(gmaxKeys),
+    `${tag} ein Boss-Knopf je Gigadynamax-Pokémon erwartet (${gmaxKeys.length}), gefunden: ${bosses.length}`);
 
   for (const key of bosses) {
     await page.click(`.boss-btn[data-boss="${key}"]`);
@@ -304,10 +306,8 @@ async function testUpcoming(page, vp) {
   console.log(`${tag} läuft …`);
   await page.goto(url('index.html'));
   const facts = await pokemonFacts(page);
-  const { total, gmaxTotal } = await page.eval(`({
-    total: window.POKEMON_DATA.pokemon.length,
-    gmaxTotal: window.POKEMON_DATA.pokemon.filter((p) => p.kind === 'gigantamax').length,
-  })`);
+  // Erschienene einer Art an einem Tag (angekündigte zählen in der Kopfzeile extra).
+  const releasedAt = (kind, day) => [...facts.values()].filter((f) => f.kind === kind && !(f.releaseDate && f.releaseDate > day)).length;
   const typeButtons = await page.eval(`[...document.querySelectorAll('.type-bar__btn')].map((b) => b.dataset.type)`);
   const days = [...new Set([...facts.values()].map((f) => f.releaseDate).filter(Boolean))].sort();
   const firstDay = days[0];
@@ -331,9 +331,10 @@ async function testUpcoming(page, vp) {
       for (const c of s.cards.filter((x) => x.upcoming)) marked.add(c.name);
     }
     check(marked.size === expected.size, `${tag} ${day} ${time}: ${marked.size} Pokémon markiert, erwartet ${expected.size}`);
-    // Kopfzeile: erschienene Dynamax, Gigadynamax und Angekündigte ergeben zusammen alle Einträge.
+    // Kopfzeile: erschienene Dynamax, erschienene Gigadynamax und Angekündigte ergeben zusammen alle Einträge.
     const { meta } = await rankingState(page);
-    const metaStart = `${total - gmaxTotal - expected.size} Dynamax · ${gmaxTotal} Gigadynamax · ${expected.size ? `${expected.size} angekündigt · ` : ''}Spieldaten vom `;
+    const metaStart = `${releasedAt('dynamax', day)} Dynamax · ${releasedAt('gigantamax', day)} Gigadynamax · ${expected.size ? `${expected.size} angekündigt · ` : ''}Spieldaten vom `;
+    check(releasedAt('dynamax', day) + releasedAt('gigantamax', day) + expected.size === facts.size, `${tag} ${day}: Zählung der Kopfzeile geht nicht auf`);
     check(meta.startsWith(metaStart), `${tag} ${day} ${time}: Kopfzeile "${meta}" beginnt nicht mit "${metaStart}"`);
   }
 
@@ -359,33 +360,59 @@ async function testUpcoming(page, vp) {
       `${tag} ${where}: Suchtreffer für ${name} trägt die Marken "${hit.upcomingBadge}" / "${hit.regionBadge}"`);
   };
 
-  // Suche und Details eines Pokémon kurz vor seinem Erscheinungstag und kurz nach dessen Beginn
-  for (const [day, time, chipPattern, label] of [[dayBefore(lastDay), '23:30', / · bald$/, 'Dynamax ab'], [lastDay, '00:30', / · Platz \d+$/, 'Dynamax seit']]) {
-    await page.setToday(day, time);
-    await page.goto(url('index.html'));
-    // Ein Pokémon, das nur in einer Region erscheint, trägt den Hinweis auch im Suchtreffer.
-    const regional = [...facts].find(([, f]) => f.region)?.[0];
-    if (regional) checkHitBadges(await searchHit(regional), regional, day, `${day} ${time}`);
-    const hit = await searchHit(lateName);
-    const { chips } = hit;
-    check(chips.length > 0 && chips.every((c) => chipPattern.test(c)), `${tag} ${day} ${time}: Suchtreffer für ${lateName} zeigen "${chips.join(' | ')}"`);
-    checkHitBadges(hit, lateName, day, `${day} ${time}`);
-    if (!chips.length) continue;
-    await page.click('[data-test="hit-chip"]');
-    const found = await page.eval(`(() => {
-      const li = [...document.querySelectorAll('.ranking__list > li')].find((x) => x.querySelector('.card__name span').textContent === ${JSON.stringify(lateName)});
-      if (li) li.dataset.test = 'late-card';
-      return !!li;
-    })()`);
-    check(found, `${tag} ${day} ${time}: Karte von ${lateName} nach Klick auf den Suchtreffer nicht in der Liste`);
-    if (!found) continue;
-    await page.click('[data-test="late-card"] summary');
-    const shownDate = await page.eval(`(() => {
-      const fact = document.querySelector('[data-test="late-card"] .facts div:last-child');
-      return { label: fact.querySelector('dt').textContent, date: fact.querySelector('dd').textContent };
-    })()`);
-    check(shownDate.label === label && shownDate.date.startsWith(`${dayNumber(lastDay)} `) && shownDate.date.endsWith(` ${lastDay.slice(0, 4)}`),
-      `${tag} ${day} ${time}: Details von ${lateName} zeigen "${shownDate.label} ${shownDate.date}" statt "${label}" mit dem ${dayNumber(lastDay)} ${lastDay.slice(0, 4)}`);
+  // Suche und Details eines Pokémon kurz vor seinem Erscheinungstag und kurz nach dessen Beginn: das letzte
+  // angekündigte Dynamax-Pokémon und jedes angekündigte Gigadynamax-Pokémon.
+  const checkSearchAndDetails = async (name, releaseDay, kindLabel) => {
+    for (const [day, time, chipPattern, label] of [[dayBefore(releaseDay), '23:30', / · bald$/, `${kindLabel} ab`], [releaseDay, '00:30', / · Platz \d+$/, `${kindLabel} seit`]]) {
+      await page.setToday(day, time);
+      await page.goto(url('index.html'));
+      // Ein Pokémon, das nur in einer Region erscheint, trägt den Hinweis auch im Suchtreffer.
+      const regional = [...facts].find(([, f]) => f.region)?.[0];
+      if (regional) checkHitBadges(await searchHit(regional), regional, day, `${day} ${time}`);
+      const hit = await searchHit(name);
+      const { chips } = hit;
+      check(chips.length > 0 && chips.every((c) => chipPattern.test(c)), `${tag} ${day} ${time}: Suchtreffer für ${name} zeigen "${chips.join(' | ')}"`);
+      checkHitBadges(hit, name, day, `${day} ${time}`);
+      if (!chips.length) continue;
+      await page.click('[data-test="hit-chip"]');
+      const found = await page.eval(`(() => {
+        const li = [...document.querySelectorAll('.ranking__list > li')].find((x) => x.querySelector('.card__name span').textContent === ${JSON.stringify(name)});
+        if (li) li.dataset.test = 'late-card';
+        return !!li;
+      })()`);
+      check(found, `${tag} ${day} ${time}: Karte von ${name} nach Klick auf den Suchtreffer nicht in der Liste`);
+      if (!found) continue;
+      await page.click('[data-test="late-card"] summary');
+      const shownDate = await page.eval(`(() => {
+        const fact = document.querySelector('[data-test="late-card"] .facts div:last-child');
+        return { label: fact.querySelector('dt').textContent, date: fact.querySelector('dd').textContent };
+      })()`);
+      check(shownDate.label === label && shownDate.date.startsWith(`${dayNumber(releaseDay)} `) && shownDate.date.endsWith(` ${releaseDay.slice(0, 4)}`),
+        `${tag} ${day} ${time}: Details von ${name} zeigen "${shownDate.label} ${shownDate.date}" statt "${label}" mit dem ${dayNumber(releaseDay)} ${releaseDay.slice(0, 4)}`);
+    }
+  };
+  await checkSearchAndDetails(lateName, lastDay, 'Dynamax');
+  const announcedGmax = [...facts].filter(([, f]) => f.kind === 'gigantamax' && f.releaseDate);
+  for (const [name, f] of announcedGmax) await checkSearchAndDetails(name, f.releaseDate, 'Gigadynamax');
+
+  // Angekündigte Gigadynamax-Bosse: bis zum Erscheinungstag Marke am Boss-Knopf und Hinweis beim Boss –
+  // die Konter lassen sich trotzdem schon ansehen. Ab dem Tag ist beides weg.
+  for (const [name, f] of announcedGmax) {
+    for (const [day, time, upcoming] of [[dayBefore(f.releaseDate), '23:30', true], [f.releaseDate, '00:30', false]]) {
+      await page.setToday(day, time);
+      await page.goto(url('konter.html'));
+      await page.click(`.boss-btn[data-boss="${f.key}"]`);
+      const b = await page.eval(`({
+        badge: document.querySelector('.boss-btn[data-boss="${f.key}"] .badge--upcoming')?.textContent ?? null,
+        note: document.querySelector('.boss__note')?.textContent ?? null,
+        name: document.getElementById('boss-name').textContent,
+        rows: document.querySelectorAll('#role-panel > li').length,
+      })`);
+      const marked = upcoming
+        ? isUpcomingBadge(b.badge, f.releaseDate, day) && (b.note ?? '').startsWith('Angekündigt: für alle ab ')
+        : b.badge === null && b.note === null;
+      check(b.name === name && b.rows > 0 && marked, `${tag} ${day} ${time}: Boss ${name} zeigt Marke "${b.badge}" und Hinweis "${b.note}"`);
+    }
   }
 
   // Konter: alles, was die Seite vorschlägt – je Boss die Teams und die Listen aller drei Rollen-Tabs.
@@ -405,7 +432,7 @@ async function testUpcoming(page, vp) {
     return shown;
   };
 
-  // Vor dem allerersten Dynamax dürfen nur Gigadynamax-Pokémon vorgeschlagen werden (sie haben kein Datum).
+  // Vor dem allerersten Dynamax dürfen nur erschienene Gigadynamax-Pokémon vorgeschlagen werden (sie haben kein Datum).
   await page.setToday(dayBefore(firstDay), '23:30');
   await page.goto(url('konter.html'));
   const allBosses = await page.eval(`[...document.querySelectorAll('.boss-btn')].map((b) => b.dataset.boss)`);

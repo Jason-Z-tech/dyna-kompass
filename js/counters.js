@@ -3,7 +3,7 @@
 // Seite "G-Max-Konter": Team-Vorschläge, Angreifer, Tanks und Heiler gegen einen Gigadynamax-Boss.
 
 (() => {
-  const { el, TYPE_ORDER, formatNumber, formatFactor, slugOf } = Dyna;
+  const { el, TYPE_ORDER, formatNumber, formatDate, formatFactor, slugOf } = Dyna;
 
   const LIST_SIZE = 12;
   const ROLE_TABS = [
@@ -152,6 +152,7 @@
         Dyna.pokemonArt(boss, { size: 'sm', eager: true }),
         el('span', { class: 'boss-btn__name', text: boss.name.replace('Gigadynamax-', '') }),
         el('span', { class: 'boss-btn__types' }, boss.types.map((t) => el('span', { class: `type-dot type-${slugOf(t)}`, title: data.types[t] }))),
+        Dyna.upcomingBadge(boss),
       ])));
     }
     for (const btn of bar.children) btn.setAttribute('aria-pressed', String(btn.dataset.boss === currentBoss().key));
@@ -172,6 +173,10 @@
         el('p', { class: 'boss__label', text: 'Gigadynamax-Boss · 6-Sterne-Max-Kampf' }),
         el('h2', { class: 'boss__name', id: 'boss-name', text: boss.name }),
         el('div', { class: 'card__types' }, boss.types.map((t) => Dyna.typeChip(t, data))),
+        // Angekündigte Bosse: Die Konter lassen sich schon vorbereiten.
+        Dyna.isUpcoming(boss)
+          ? el('p', { class: 'boss__note', text: `Angekündigt: für alle ab ${formatDate(boss.releaseDate)}. Die Konter kannst du schon jetzt vorbereiten.` })
+          : null,
         el('div', { class: 'boss__facts' }, [
           el('div', {}, [el('h3', { text: 'Schwach gegen' }), factorList(weak)]),
           el('div', {}, [el('h3', { text: 'Resistent gegen' }), factorList(strong)]),

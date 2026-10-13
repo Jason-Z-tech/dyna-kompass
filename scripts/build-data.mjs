@@ -116,6 +116,14 @@ const RELEASE_NOTES = {
   Mesprit: { region: 'Europa, Naher Osten, Afrika und Indien' },
   Azelf: { region: 'Amerika und Grönland' },
 };
+// Angekündigte Gigadynamax-Pokémon. Das Wiki führt Gigadynamax erst, wenn sie erschienen sind (ohne Datum);
+// bis dahin trägt diese Liste sie mit dem Tag ein, ab dem alle sie bekommen können. Jede Zeile braucht eine
+// offizielle Quelle. Sobald das Wiki das Pokémon als erschienen führt, die Zeile löschen (das Skript weist darauf hin).
+const ANNOUNCED_GMAX = [
+  // Ab 6.11.2026 nur mit Ticket vor Ort (Sendai, Mexiko-Stadt), für alle in 6-Sterne-Max-Kämpfen bei der
+  // „Naturzone: Global“ am 14./15.11.2026: https://pokemongo.com/de/gowildarea/global
+  { name: 'Duraludon', releaseDate: '2026-11-14' },
+];
 // So schlicht kündigt das Wiki an, wenn ein Pokémon einfach überall erscheint. Jeder andere Satz
 // (ein Event, Regionen, Tickets) kann heißen, dass das Wiki-Datum nicht für alle gilt.
 const WIKI_PLAIN_RELEASE = /^Dynamax [^.]* will be released\.$/;
@@ -536,18 +544,25 @@ async function main() {
   const { releases: dynamax, undated } = parseDynamaxReleases(dynWiki.parse.wikitext['*']);
   const releasedGmax = expandGmaxForms(index, parseReleasedGigantamax(gmaxWiki.parse.wikitext['*']));
   const hints = applyReleaseNotes(dynamax);
-  const malformed = dynamax.filter((d) => !isIsoDay(d.releaseDate));
+  const announcedGmax = [];
+  for (const a of ANNOUNCED_GMAX) {
+    if (releasedGmax.some((g) => g.name === a.name)) hints.push(`ANNOUNCED_GMAX nennt "${a.name}", das Wiki führt es schon als erschienen – Zeile löschen.`);
+    else announcedGmax.push(...expandGmaxForms(index, [{ name: a.name, form: null, releaseDate: a.releaseDate }]));
+  }
+  const gigantamax = [...releasedGmax, ...announcedGmax];
+  const malformed = [...dynamax, ...announcedGmax].filter((d) => !isIsoDay(d.releaseDate));
   if (malformed.length) {
     throw new Error(`Erscheinungstag ist kein gültiger Tag im Format JJJJ-MM-TT: ${malformed.map((d) => `${d.name} "${d.releaseDate}"`).join(', ')}`);
   }
   const announced = dynamax.filter((d) => d.releaseDate > today);
-  console.log(`   ${dynamax.length - announced.length} Dynamax und ${releasedGmax.length} Gigadynamax erschienen, ${announced.length} Dynamax angekündigt`);
+  console.log(`   ${dynamax.length - announced.length} Dynamax und ${releasedGmax.length} Gigadynamax erschienen, ${announced.length} Dynamax und ${announcedGmax.length} Gigadynamax angekündigt`);
+  for (const g of announcedGmax) console.log(`     ${g.releaseDate}  Gigadynamax-${g.name} (ANNOUNCED_GMAX)`);
   hints.push(...reportAnnounced(announced));
   if (undated.length) hints.push(`Wiki-Abschnitt ohne lesbares Datum übersprungen: ${undated.join(', ')}`);
 
   console.log('3/5 Deutsche Namen laden …');
   const moveIds = new Set();
-  for (const src of [...dynamax, ...releasedGmax]) {
+  for (const src of [...dynamax, ...gigantamax]) {
     const sid = speciesIdFromName(src.name);
     const s = findSettings(index, sid, formIdFromWiki(sid, src.form));
     for (const id of [...(s?.quickMoves ?? []), ...(s?.eliteQuickMove ?? []), ...(s?.cinematicMoves ?? []), ...(s?.eliteCinematicMove ?? [])]) {
@@ -560,7 +575,7 @@ async function main() {
 
   const entries = [];
   const errors = [];
-  for (const [list, kind] of [[dynamax, 'dynamax'], [releasedGmax, 'gigantamax']]) {
+  for (const [list, kind] of [[dynamax, 'dynamax'], [gigantamax, 'gigantamax']]) {
     for (const src of list) {
       const { entry, error } = buildEntry(index, src, kind, moveNames);
       if (error) errors.push(error); else entries.push(entry);
