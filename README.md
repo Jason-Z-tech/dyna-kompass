@@ -35,7 +35,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html`, `konter.html` und
-`datenschutz.html` den Zusatz `?v=2026-10-13-2` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
+`datenschutz.html` den Zusatz `?v=2026-10-13-3` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
 (suchen und ersetzen; am selben Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und neue
 Skripte mischen – die Seite bliebe für diese Besucher kurz leer. Nach einem reinen Daten-Update ist das nicht nötig.
 

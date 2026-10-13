@@ -176,9 +176,11 @@
 
   // Hinweis für angekündigte und für regionale Bosse – die Konter lassen sich trotzdem schon vorbereiten.
   function bossNote(boss) {
-    const where = boss.region ? `nur in ${boss.region}` : 'für alle';
     if (Dyna.isUpcoming(boss)) {
-      return el('p', { class: 'boss__note', text: `Angekündigt: ${where} ab ${formatDate(boss.releaseDate)}. Die Konter kannst du schon jetzt vorbereiten.` });
+      const when = boss.region
+        ? `Angekündigt ab ${formatDate(boss.releaseDate)} – erscheint nur in: ${boss.region}.`
+        : `Angekündigt: für alle ab ${formatDate(boss.releaseDate)}.`;
+      return el('p', { class: 'boss__note', text: `${when} Die Konter kannst du schon jetzt vorbereiten.` });
     }
     return boss.region ? el('p', { class: 'boss__note', text: `Erscheint nur in: ${boss.region}.` }) : null;
   }
@@ -364,7 +366,10 @@
     Dyna.centerInScroller(bar, bar.querySelector(`[data-boss="${state.bossKey}"]`));
     window.addEventListener('hashchange', () => {
       const key = bossFromHash();
-      if (key && key !== state.bossKey) { state.bossKey = key; render(); }
+      if (!key || key === state.bossKey) return;
+      state.bossKey = key;
+      render();
+      Dyna.centerInScroller(bar, bar.querySelector(`[data-boss="${key}"]`));
     });
   }
 

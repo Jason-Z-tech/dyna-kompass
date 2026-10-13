@@ -278,8 +278,19 @@ async function testCounters(page, vp) {
     }
   }
 
+  // Umschalter: beide Optionen gleich hoch; die Zahl bleibt auch beim Überfahren so lesbar wie ihr Text.
+  await page.click('label:has(input[name=tier][value="6"])');
+  const tierLook = await page.eval(`(() => {
+    const spans = [...document.querySelectorAll('.boss-tiers label > span')];
+    const count = document.querySelector('[data-tier-count="6"]');
+    return { heights: spans.map((x) => Math.round(x.getBoundingClientRect().height)), count: getComputedStyle(count).color, text: getComputedStyle(count.parentElement).color };
+  })()`);
+  check(new Set(tierLook.heights).size === 1 && tierLook.count === tierLook.text, `${tag} Umschalter: Höhen ${tierLook.heights.join('/')}, Zahl ${tierLook.count} statt ${tierLook.text}`);
+
   // Die Stufe merkt sich ihren Boss: 5 Sterne → Zapdos, 6 Sterne → zurück zu Gigadynamax, wieder 5 → Zapdos.
+  // Nach dem Wechsel scrollt die Leiste sanft zum gemerkten Boss – erst danach klicken.
   await page.click('label:has(input[name=tier][value="5"])');
+  await new Promise((r) => setTimeout(r, 800));
   await page.click('.boss-btn[data-boss="dynamax-zapdos"]');
   await page.click('label:has(input[name=tier][value="6"])');
   let s = await counterState(page);
@@ -439,9 +450,11 @@ async function testUpcoming(page, vp) {
         name: document.getElementById('boss-name').textContent,
         rows: document.querySelectorAll('#role-panel > li').length,
       })`);
-      const where = f.region ? `nur in ${f.region}` : 'für alle';
+      const noteOk = f.region
+        ? (b.note ?? '').startsWith('Angekündigt ab ') && (b.note ?? '').includes(` – erscheint nur in: ${f.region}.`)
+        : (b.note ?? '').startsWith('Angekündigt: für alle ab ');
       const marked = upcoming
-        ? isUpcomingBadge(b.badge, f.releaseDate, day) && (b.note ?? '').startsWith(`Angekündigt: ${where} ab `)
+        ? isUpcomingBadge(b.badge, f.releaseDate, day) && noteOk
         : b.badge === null && b.note === (f.region ? `Erscheint nur in: ${f.region}.` : null);
       check(b.name === name && b.rows > 0 && marked, `${tag} ${day} ${time}: Boss ${name} zeigt Marke "${b.badge}" und Hinweis "${b.note}"`);
     }
