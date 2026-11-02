@@ -292,6 +292,8 @@ function speciesIdFromName(name) {
 function formIdFromWiki(speciesId, wikiForm) {
   if (!wikiForm) return null;
   const clean = wikiForm.replace(/\s+(Form|Style)$/i, '').toUpperCase().replace(/[\s-]+/g, '_');
+  // Bei Pokémon mit männlicher und weiblicher Form (Psiaugon) heißt die männliche in den Spieldaten NORMAL.
+  if (clean === 'MALE') return `${speciesId}_NORMAL`;
   return `${speciesId}_${clean}`;
 }
 
