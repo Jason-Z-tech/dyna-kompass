@@ -77,7 +77,7 @@ const Dyna = (() => {
   }
 
   // Alle Max-Attacken, die ein Pokémon einsetzen kann: Dynamax je Sofort-Attacken-Typ, Gigadynamax und
-  // Sonder-Angreifer fest. Sonder-Bosse (Eternamax-Endynalos) kann man nicht einsetzen.
+  // Sonder-Angreifer fest. Sonder-Bosse (Unendynamax-Endynalos) kann man nicht einsetzen.
   function rolesOf(pokemon, data, includeElite) {
     if (pokemon.kind === 'boss') return [];
     const fast = fastMovesFor(pokemon, includeElite);

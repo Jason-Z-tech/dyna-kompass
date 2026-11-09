@@ -136,7 +136,7 @@ const SPECIAL_MAX = [
   { name: 'Zamazenta', formId: 'ZAMAZENTA_CROWNED_SHIELD', move: 'BEHEMOTH_BASH', power: 350, label: 'König des Schildes' },
   { name: 'Eternatus', formId: null, move: 'DYNAMAX_CANNON', power: 450, label: null },
 ];
-// Sonder-Bosse, die man selbst nicht einsetzen kann: Eternamax-Endynalos, 6-Sterne-Max-Kampf bei besonderen Events
+// Sonder-Bosse, die man selbst nicht einsetzen kann: Unendynamax-Endynalos, 6-Sterne-Max-Kampf bei besonderen Events
 // (bis 100 Personen, danach nicht fangbar).
 const SPECIAL_BOSSES = [
   { name: 'Eternatus', formId: 'ETERNATUS_ETERNAMAX', label: 'Unendynamax', bossTier: 6 },
@@ -557,6 +557,12 @@ function buildEntry(index, source, kind, moveNames) {
     const move = moveId && index.moves.get(moveId);
     if (!move || !move.vfxName.endsWith(source.move.toLowerCase())) return { error: `Keine passende Max-Attacke in den Spieldaten: ${source.name} ${formId ?? ''}` };
     entry.maxMove = { id: moveId, name: moveNames.get(source.move) ?? titleCase(source.move), type: typeKey(move.pokemonType), power: source.power };
+    // Die Könige lernen Gigantenhieb bzw. Gigantenstoß beim Formwechsel (moveReassignment) – in den Spieldaten der
+    // Form selbst fehlt die Attacke, im Spiel kennt sie jedes gekrönte Zacian/Zamazenta.
+    if (!entry.chargedMoves.some((m) => m.id === source.move)) {
+      const signature = describeMove(index, source.move, false, moveNames);
+      if (signature) entry.chargedMoves.push(signature);
+    }
   }
   if (kind === 'gigantamax') {
     const moveId = gmaxMoveFor(index, speciesId, formId);

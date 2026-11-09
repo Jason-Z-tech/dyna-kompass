@@ -275,7 +275,7 @@ async function testCounters(page, vp) {
     const count = await page.eval(`document.querySelector('[data-tier-count="${tier}"]').textContent`);
     check(JSON.stringify(bosses) === JSON.stringify(expected) && count === String(expected.length),
       `${tag} ${tier} Sterne: ${bosses.length} Boss-Knöpfe, erwartet ${expected.length} (Zähler ${count})`);
-    // 6 Sterne: alle Gigadynamax-Pokémon und der Sonder-Boss Eternamax-Endynalos (Unendynamax).
+    // 6 Sterne: alle Gigadynamax-Pokémon und der Sonder-Boss Unendynamax-Endynalos.
     if (tier === 6) check(JSON.stringify(expected.filter((k) => !k.startsWith('boss-'))) === JSON.stringify(gmaxKeys) && expected.includes('boss-eternatus_eternamax'),
       `${tag} 6 Sterne sind nicht die Gigadynamax-Pokémon plus Unendynamax-Endynalos`);
     else check(expected.length >= 15 && expected.every((k) => k.startsWith('dynamax-')) && !expected.some((k) => /kubfu|urshifu/.test(k)),
@@ -286,7 +286,7 @@ async function testCounters(page, vp) {
       const s = await counterState(page);
       const btnName = await page.eval(`document.querySelector('.boss-btn[data-boss="${key}"] .boss-btn__name').textContent`);
       check(s.boss === key && s.bossName.includes(btnName), `${tag} Boss ${key}: Auswahl/Überschrift falsch (${s.bossName})`);
-      const label = key.startsWith('boss-') ? 'Eternamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[tier];
+      const label = key.startsWith('boss-') ? 'Unendynamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[tier];
       check(s.tier === String(tier) && s.label === label, `${tag} Boss ${key}: Stufe ${s.tier}, Zeile "${s.label}"`);
       check(s.teams.length === 3 && s.teams.every((t) => t.length === 3), `${tag} Boss ${key}: nicht 3 Teams à 3`);
       const [attack, balanced, safe] = s.teams;

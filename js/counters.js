@@ -200,7 +200,7 @@
     return el('section', { class: 'boss', 'aria-labelledby': 'boss-name' }, [
       Dyna.pokemonArt(boss, { size: 'lg', eager: true }),
       el('div', { class: 'boss__info' }, [
-        el('p', { class: 'boss__label', text: boss.kind === 'boss' ? 'Eternamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[boss.bossTier] }),
+        el('p', { class: 'boss__label', text: boss.kind === 'boss' ? 'Unendynamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[boss.bossTier] }),
         el('h2', { class: 'boss__name', id: 'boss-name', text: boss.name }),
         el('div', { class: 'card__types' }, boss.types.map((t) => Dyna.typeChip(t, data))),
         bossNote(boss),
