@@ -51,7 +51,7 @@
     const tanks = [];
     const healers = [];
     // Angekündigte Pokémon zählen erst ab ihrem Erscheinungstag – vorher kann sie niemand einsetzen.
-    for (const p of data.pokemon.filter((x) => !Dyna.isUpcoming(x))) {
+    for (const p of data.pokemon.filter((x) => x.kind !== 'boss' && !Dyna.isUpcoming(x))) {
       const fast = Dyna.fastestMove(p, state.includeElite);
       if (!fast) continue;
       const taken = damageTaken(p, moves);
@@ -174,8 +174,11 @@
     for (const input of document.querySelectorAll('input[name=tier]')) input.checked = Number(input.value) === state.tier;
   }
 
-  // Hinweis für angekündigte und für regionale Bosse – die Konter lassen sich trotzdem schon vorbereiten.
+  // Hinweis für Sonder-Bosse, angekündigte und regionale Bosse – die Konter lassen sich trotzdem schon vorbereiten.
   function bossNote(boss) {
+    if (boss.kind === 'boss') {
+      return el('p', { class: 'boss__note', text: 'Sonder-Max-Kampf nur bei besonderen Events: Bis zu 100 Personen kämpfen zusammen, nach dem Sieg gibt es Bonbons statt eines Fangs.' });
+    }
     if (Dyna.isUpcoming(boss)) {
       const when = boss.region
         ? `Angekündigt ab ${formatDate(boss.releaseDate)} – erscheint nur in: ${boss.region}.`
@@ -197,7 +200,7 @@
     return el('section', { class: 'boss', 'aria-labelledby': 'boss-name' }, [
       Dyna.pokemonArt(boss, { size: 'lg', eager: true }),
       el('div', { class: 'boss__info' }, [
-        el('p', { class: 'boss__label', text: TIER_LABEL[boss.bossTier] }),
+        el('p', { class: 'boss__label', text: boss.kind === 'boss' ? 'Eternamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[boss.bossTier] }),
         el('h2', { class: 'boss__name', id: 'boss-name', text: boss.name }),
         el('div', { class: 'card__types' }, boss.types.map((t) => Dyna.typeChip(t, data))),
         bossNote(boss),

@@ -695,6 +695,8 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 }
 .badge--dynamax { background: var(--dyna-soft); color: #ff8fab; border: 1px solid #ff2e6366; }
 .badge--gigantamax { background: var(--gmax-soft); color: var(--gmax); border: 1px solid #ffc23d66; }
+/* Sonder-Angreifer (Zacian/Zamazenta als König, Endynalos): Max-Kampf ohne Dynamax. */
+.badge--special { background: #3ee0c91a; color: var(--charge); border: 1px solid #3ee0c966; }
 .badge--elite { margin-left: 6px; background: #3ee0c91f; color: var(--charge); border: 1px solid #3ee0c955; }
 /* Datum und Region sind ganze Wörter statt Kürzel: normale Schreibung, dürfen umbrechen. */
 .badge--upcoming, .badge--region { background: #ffffff0f; color: var(--text); border: 1px dashed #a3a8ccb3; text-transform: none; letter-spacing: .02em; white-space: normal; }

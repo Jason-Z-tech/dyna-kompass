@@ -37,6 +37,8 @@ const rankingState = (page) => page.eval(`(() => ({
   cards: [...document.querySelectorAll('.ranking__list > li')].map((li) => ({
     name: li.querySelector('.card__name span').textContent,
     gmax: !!li.querySelector('.card__name .badge--gigantamax'),
+    special: !!li.querySelector('.card__name .badge--special'),
+    maxMove: li.querySelector('.card__max')?.textContent ?? null,
     elite: !!li.querySelector('.card__move .badge--elite'),
     values: [...li.querySelectorAll('.meter strong')].map((s) => parseFloat(s.textContent.replace(/[’']/g, ''))),
     upcoming: li.classList.contains('card--upcoming'),
@@ -100,10 +102,12 @@ function checkUpcomingCards(s, facts, day, tag) {
   check(badRegion.length === 0, `${tag} Regions-Marke falsch bei: ${badRegion.map((c) => `${c.name} "${c.regionBadge}"`).join(', ')}`);
   // Angekündigte stehen an ihrer sortierten Stelle und zählen in allen Zählern mit.
   check(isSorted(s.cards.map((c) => c.values[0])), `${tag} Karten nicht nach Schaden sortiert`);
+  // "Alle" zählt auch die Sonder-Angreifer (Marke "Spezial"); "Dynamax" und "Gigadynamax" nur ihre Art.
   const gmaxCards = s.cards.filter((c) => c.gmax).length;
+  const specialCards = s.cards.filter((c) => c.special).length;
   check(s.countBadge === s.cards.length && s.kindCounts.all === s.cards.length
-    && s.kindCounts.gigantamax === gmaxCards && s.kindCounts.dynamax === s.cards.length - gmaxCards,
-  `${tag} Zähler (Typ ${s.countBadge}, Art ${JSON.stringify(s.kindCounts)}) passen nicht zu ${s.cards.length} Karten, davon ${gmaxCards} Gigadynamax`);
+    && s.kindCounts.gigantamax === gmaxCards && s.kindCounts.dynamax === s.cards.length - gmaxCards - specialCards,
+  `${tag} Zähler (Typ ${s.countBadge}, Art ${JSON.stringify(s.kindCounts)}) passen nicht zu ${s.cards.length} Karten, davon ${gmaxCards} Gigadynamax und ${specialCards} Spezial`);
 }
 
 async function testRanking(page, vp) {
@@ -127,6 +131,19 @@ async function testRanking(page, vp) {
     checkUpcomingCards(s, facts, TODAY, `${tag} Typ ${type}:`);
   }
 
+  // Sonder-Angreifer (Max-Kampf ohne Dynamax): in "Alle" mit Marke "Spezial", fester Max-Attacke und Max-Schaden
+  // = Stärke × Angriff (Level 40) × STAB ÷ 100, unabhängig nachgerechnet. Der Sonder-Boss steht in keiner Liste.
+  for (const [type, name, move] of [['STEEL', 'Zacian (König des Schwertes)', 'Gigantenhieb'], ['STEEL', 'Zamazenta (König des Schildes)', 'Gigantenstoß'], ['DRAGON', 'Endynalos', 'Dynamax-Kanone']]) {
+    await page.click(`.type-bar__btn[data-type="${type}"]`);
+    const s = await rankingState(page);
+    const card = s.cards.find((c) => c.name === name);
+    const p = await page.eval(`window.POKEMON_DATA.pokemon.find((x) => x.name === ${JSON.stringify(name)})`);
+    const expected = (p.maxMove.power * p.atk40 * (p.types.includes(p.maxMove.type) ? 1.2 : 1)) / 100;
+    check(Boolean(card) && card.special && card.maxMove === move && Math.abs(card.values[0] - expected) <= 1,
+      `${tag} ${name}: Karte ${card ? `"${card.maxMove}", ${card.values[0]}` : 'fehlt'} statt ${move}, ${expected.toFixed(0)}`);
+  }
+  check(!(await page.eval(`[...document.querySelectorAll('.card__name span')].some((x) => x.textContent === 'Unendynamax-Endynalos')`)), `${tag} Sonder-Boss steht in der Rangliste`);
+
   // Art-Filter mehrfach hin und her (der gemeldete Fehler)
   await page.click('.type-bar__btn[data-type="FIRE"]');
   const all = (await rankingState(page)).cards.length;
@@ -136,7 +153,7 @@ async function testRanking(page, vp) {
       const s = await rankingState(page);
       check(s.kind === kind, `${tag} Runde ${round}: Knopf ${kind} nicht gewählt`);
       if (kind === 'gigantamax') check(s.cards.length > 0 && s.cards.every((c) => c.gmax), `${tag} Runde ${round}: Gigadynamax zeigt falsche Karten`);
-      if (kind === 'dynamax') check(s.cards.length > 0 && s.cards.every((c) => !c.gmax), `${tag} Runde ${round}: Dynamax zeigt Gigadynamax-Karten`);
+      if (kind === 'dynamax') check(s.cards.length > 0 && s.cards.every((c) => !c.gmax && !c.special), `${tag} Runde ${round}: Dynamax zeigt Gigadynamax- oder Spezial-Karten`);
       if (kind === 'all') check(s.cards.length === all, `${tag} Runde ${round}: Alle zeigt ${s.cards.length} statt ${all}`);
       check(s.kindCounts[kind] === s.cards.length, `${tag} Runde ${round}: Zähler bei ${kind} passt nicht`);
     }
@@ -258,7 +275,9 @@ async function testCounters(page, vp) {
     const count = await page.eval(`document.querySelector('[data-tier-count="${tier}"]').textContent`);
     check(JSON.stringify(bosses) === JSON.stringify(expected) && count === String(expected.length),
       `${tag} ${tier} Sterne: ${bosses.length} Boss-Knöpfe, erwartet ${expected.length} (Zähler ${count})`);
-    if (tier === 6) check(JSON.stringify(expected) === JSON.stringify(gmaxKeys), `${tag} 6 Sterne sind nicht genau die Gigadynamax-Pokémon`);
+    // 6 Sterne: alle Gigadynamax-Pokémon und der Sonder-Boss Eternamax-Endynalos (Unendynamax).
+    if (tier === 6) check(JSON.stringify(expected.filter((k) => !k.startsWith('boss-'))) === JSON.stringify(gmaxKeys) && expected.includes('boss-eternatus_eternamax'),
+      `${tag} 6 Sterne sind nicht die Gigadynamax-Pokémon plus Unendynamax-Endynalos`);
     else check(expected.length >= 15 && expected.every((k) => k.startsWith('dynamax-')) && !expected.some((k) => /kubfu|urshifu/.test(k)),
       `${tag} 5 Sterne: falsche Bosse ${expected.join(', ')}`);
 
@@ -267,7 +286,8 @@ async function testCounters(page, vp) {
       const s = await counterState(page);
       const btnName = await page.eval(`document.querySelector('.boss-btn[data-boss="${key}"] .boss-btn__name').textContent`);
       check(s.boss === key && s.bossName.includes(btnName), `${tag} Boss ${key}: Auswahl/Überschrift falsch (${s.bossName})`);
-      check(s.tier === String(tier) && s.label === TIER_LABEL[tier], `${tag} Boss ${key}: Stufe ${s.tier}, Zeile "${s.label}"`);
+      const label = key.startsWith('boss-') ? 'Eternamax-Boss · 6-Sterne-Sonder-Max-Kampf' : TIER_LABEL[tier];
+      check(s.tier === String(tier) && s.label === label, `${tag} Boss ${key}: Stufe ${s.tier}, Zeile "${s.label}"`);
       check(s.teams.length === 3 && s.teams.every((t) => t.length === 3), `${tag} Boss ${key}: nicht 3 Teams à 3`);
       const [attack, balanced, safe] = s.teams;
       check(attack.every((m) => m.role === 'attacker'), `${tag} Boss ${key}: Voller Angriff enthält Nicht-Angreifer`);
@@ -275,8 +295,21 @@ async function testCounters(page, vp) {
       check(safe.some((m) => m.role === 'healer') && safe.some((m) => m.role === 'tank'), `${tag} Boss ${key}: Sicher ohne Tank+Heiler`);
       check(s.teams.every((t) => new Set(t.map((m) => m.name)).size === t.length), `${tag} Boss ${key}: doppeltes Pokémon im Team`);
       check(s.rows === 12, `${tag} Boss ${key}: ${s.rows} statt 12 Zeilen`);
+      // Den Sonder-Boss kann man nicht einsetzen: nie in Teams oder Listen.
+      check(!(await page.eval(`[...document.querySelectorAll('#role-panel .row__name span:first-child, .member__name span:last-child')].some((x) => x.textContent === 'Unendynamax-Endynalos')`)),
+        `${tag} Boss ${key}: Unendynamax-Endynalos als Konter vorgeschlagen`);
     }
   }
+  // Gegen Unendynamax-Endynalos ist Endynalos (Sonder-Angreifer mit Dynamax-Kanone) der beste Angreifer, mit Hinweis.
+  await page.click('label:has(input[name=tier][value="6"])');
+  await page.click('.boss-btn[data-boss="boss-eternatus_eternamax"]');
+  const eterna = await page.eval(`({
+    first: document.querySelector('#role-panel .row__name span:first-child')?.textContent,
+    special: !!document.querySelector('#role-panel > li:first-child .badge--special'),
+    note: document.querySelector('.boss__note')?.textContent ?? '',
+  })`);
+  check(eterna.first === 'Endynalos' && eterna.special && eterna.note.startsWith('Sonder-Max-Kampf nur bei besonderen Events'),
+    `${tag} Unendynamax-Endynalos: bester Angreifer ${eterna.first}, Hinweis "${eterna.note}"`);
 
   // Umschalter: beide Optionen gleich hoch; die Zahl bleibt auch beim Überfahren so lesbar wie ihr Text.
   await page.click('label:has(input[name=tier][value="6"])');
@@ -295,7 +328,7 @@ async function testCounters(page, vp) {
   await page.click('label:has(input[name=tier][value="6"])');
   let s = await counterState(page);
   const sixBoss = s.boss;
-  check(s.tier === '6' && gmaxKeys.includes(sixBoss), `${tag} Wechsel zu 6 Sternen zeigt ${s.boss}`);
+  check(s.tier === '6' && (gmaxKeys.includes(sixBoss) || sixBoss === 'boss-eternatus_eternamax'), `${tag} Wechsel zu 6 Sternen zeigt ${s.boss}`);
   await page.click('label:has(input[name=tier][value="5"])');
   s = await counterState(page);
   check(s.tier === '5' && s.boss === 'dynamax-zapdos' && (await page.eval('location.hash')) === '#boss=zapdos', `${tag} 5 Sterne merkt sich Zapdos nicht (${s.boss})`);
@@ -373,8 +406,10 @@ async function testUpcoming(page, vp) {
     check(marked.size === expected.size, `${tag} ${day} ${time}: ${marked.size} Pokémon markiert, erwartet ${expected.size}`);
     // Kopfzeile: erschienene Dynamax, erschienene Gigadynamax und Angekündigte ergeben zusammen alle Einträge.
     const { meta } = await rankingState(page);
-    const metaStart = `${releasedAt('dynamax', day)} Dynamax · ${releasedAt('gigantamax', day)} Gigadynamax · ${expected.size ? `${expected.size} angekündigt · ` : ''}Spieldaten vom `;
-    check(releasedAt('dynamax', day) + releasedAt('gigantamax', day) + expected.size === facts.size, `${tag} ${day}: Zählung der Kopfzeile geht nicht auf`);
+    const special = releasedAt('special', day);
+    const metaStart = `${releasedAt('dynamax', day)} Dynamax · ${releasedAt('gigantamax', day)} Gigadynamax · ${special ? `${special} Spezial · ` : ''}${expected.size ? `${expected.size} angekündigt · ` : ''}Spieldaten vom `;
+    const bosses = [...facts.values()].filter((f) => f.kind === 'boss').length;
+    check(releasedAt('dynamax', day) + releasedAt('gigantamax', day) + special + expected.size + bosses === facts.size, `${tag} ${day}: Zählung der Kopfzeile geht nicht auf`);
     check(meta.startsWith(metaStart), `${tag} ${day} ${time}: Kopfzeile "${meta}" beginnt nicht mit "${metaStart}"`);
   }
 

@@ -69,27 +69,35 @@ const Dyna = (() => {
     return [...fastMovesFor(pokemon, includeElite)].sort(bySpeedThenDps)[0] ?? null;
   }
 
-  // Alle Max-Attacken, die ein Pokémon einsetzen kann: Dynamax je Sofort-Attacken-Typ, Gigadynamax fest.
+  // Feste Max-Attacke: die G-Max-Attacke bei Gigadynamax, die eigene Max-Attacke bei Sonder-Angreifern
+  // (z. B. Gigantenhieb von Zacian, König des Schwertes); bei Dynamax keine (sie hängt an der Sofort-Attacke).
+  function fixedMaxMove(pokemon, data) {
+    if (pokemon.kind === 'gigantamax') return { ...pokemon.gmaxMove, power: data.rules.gmaxMovePower };
+    return pokemon.maxMove ?? null;
+  }
+
+  // Alle Max-Attacken, die ein Pokémon einsetzen kann: Dynamax je Sofort-Attacken-Typ, Gigadynamax und
+  // Sonder-Angreifer fest. Sonder-Bosse (Eternamax-Endynalos) kann man nicht einsetzen.
   function rolesOf(pokemon, data, includeElite) {
+    if (pokemon.kind === 'boss') return [];
     const fast = fastMovesFor(pokemon, includeElite);
     if (!fast.length) return [];
-    if (pokemon.kind === 'gigantamax') {
-      return [makeRole(pokemon, pokemon.gmaxMove.type, data.rules.gmaxMovePower, fastestMove(pokemon, includeElite), data)];
-    }
+    const fixed = fixedMaxMove(pokemon, data);
+    if (fixed) return [makeRole(pokemon, fixed.type, fixed.power, fastestMove(pokemon, includeElite), data, fixed.name)];
     return [...new Set(fast.map((m) => m.type))].map((type) => {
       const bestFast = fast.filter((m) => m.type === type).sort(bySpeedThenDps)[0];
-      return makeRole(pokemon, type, data.rules.maxMovePower, bestFast, data);
+      return makeRole(pokemon, type, data.rules.maxMovePower, bestFast, data, data.maxMoves[type]);
     });
   }
 
-  function makeRole(pokemon, type, power, fastMove, data) {
+  function makeRole(pokemon, type, power, fastMove, data, maxMoveName) {
     const stab = pokemon.types.includes(type);
     return {
       pokemon,
       type,
       fastMove,
       stab,
-      maxMoveName: pokemon.kind === 'gigantamax' ? pokemon.gmaxMove.name : data.maxMoves[type],
+      maxMoveName,
       // Relativer Schaden einer Max-Attacke Stufe 3 bei Level 40 (gleicher Gegner für alle).
       maxDamage: (power * pokemon.atk40 * (stab ? data.rules.stab : 1)) / 100,
       hitsPerSecond: 1 / fastMove.durationS,
@@ -109,6 +117,9 @@ const Dyna = (() => {
   }
 
   function kindBadge(pokemon) {
+    if (pokemon.kind === 'special') {
+      return el('span', { class: 'badge badge--special', text: 'Spezial', title: 'Dynamaximiert nicht, kämpft im Max-Kampf aber mit eigener Max-Attacke' });
+    }
     const isGmax = pokemon.kind === 'gigantamax';
     return el('span', { class: `badge badge--${pokemon.kind}`, text: isGmax ? 'G-Max' : 'Dynamax' });
   }

@@ -4,12 +4,15 @@ Zwei Seiten für Max-Kämpfe in **Pokémon GO**:
 
 - **Typ-Rangliste** (`index.html`): die stärksten Dynamax- und Gigadynamax-Angreifer für jeden der 18 Typen,
   mit Basiswerten, WP auf Level 40/50 und allen Attacken. Suche über alle Typen, Filter, Sortierung.
+  Dazu die **Sonder-Angreifer** mit Marke „Spezial“: Zacian (König des Schwertes), Zamazenta (König des Schildes)
+  und Endynalos dynamaximieren nicht, dürfen aber in Max-Kämpfe und kämpfen mit fester eigener Max-Attacke.
   Angekündigte Pokémon stehen schon in der Liste, markiert mit „Ab 24. Oktober“ und noch ohne Platz.
 - **Max-Konter** (`konter.html`): für jeden Boss aus 6-Sterne-Max-Kämpfen (Gigadynamax) und 5-Sterne-Max-Kämpfen
   (legendäre Dynamax wie Arktos, Lugia, Selfe oder Dialga) drei Team-Vorschläge
   (Voller Angriff · Ausgewogen · Sicher mit Heilung) und die besten Angreifer, Tanks und Heiler.
   Ein Umschalter über der Boss-Leiste wechselt zwischen 6 und 5 Sternen; angekündigte und regionale Bosse
-  tragen einen Hinweis.
+  tragen einen Hinweis. Bei 6 Sternen steht auch der Sonder-Boss **Unendynamax-Endynalos** (Eternamax, nur bei
+  besonderen Events, bis 100 Personen). Die Sonder-Angreifer zählen bei allen Bossen als Angreifer, Tanks und Heiler.
 
 Für normale Raids ab 5 Sternen (Legendäre, Mega- und Crypto-Raids) gibt es den
 [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/) – beide Seiten verlinken sich gegenseitig.
@@ -35,7 +38,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html`, `konter.html` und
-`datenschutz.html` den Zusatz `?v=2026-10-13-3` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
+`datenschutz.html` den Zusatz `?v=2026-11-09` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen
 (suchen und ersetzen; am selben Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und neue
 Skripte mischen – die Seite bliebe für diese Besucher kurz leer. Nach einem reinen Daten-Update ist das nicht nötig.
 
@@ -124,6 +127,10 @@ Die Werte sind ein Vergleich untereinander, keine exakte Schadensberechnung gege
 - **Bosse:** 6 Sterne sind alle Gigadynamax-Pokémon, 5 Sterne alle legendären Dynamax-Pokémon (Klasse aus den
   Spieldaten) – außer denen in `NOT_MAX_BATTLE_BOSSES` in `scripts/build-data.mjs` (Dakuma gab es nur über
   Spezialforschung, Wulaosu nur als Entwicklung). Das Daten-Skript schreibt die Stufe als `bossTier` in die Daten.
+  Sonder-Bosse wie Unendynamax-Endynalos stehen in `SPECIAL_BOSSES` (Art `boss`: nur Boss, nie Konter).
+- **Sonder-Angreifer** (`SPECIAL_MAX`, Art `special`): Max-Attacke laut Spieldaten (`SOURDOUGH_MOVE_MAPPING_SETTINGS`),
+  Stärke auf Stufe 3: Gigantenhieb und Gigantenstoß 350 wie eine Max-Attacke, Dynamax-Kanone 450 wie G-Max
+  (Bulbapedia). Dyna-Wall und Dyna-Kur wie bei allen anderen.
 
 - **Angreifer:** Max-Schaden × Effektivität der besten Max-Attacke gegen die Boss-Typen.
 - **Tanks:** Verteidigung × (KP + 3 Dyna-Wall-Schilde à 60 KP) ÷ durchschnittliche Wirkung der Boss-Lade-Attacken.

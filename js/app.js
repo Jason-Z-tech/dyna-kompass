@@ -171,7 +171,7 @@
   function renderSearchHits() {
     const box = document.getElementById('search-hits');
     if (!state.query) { box.hidden = true; box.replaceChildren(); return; }
-    const hits = data.pokemon.filter((p) => matchesKind(p) && matchesQuery(p));
+    const hits = data.pokemon.filter((p) => p.kind !== 'boss' && matchesKind(p) && matchesQuery(p));
     box.hidden = false;
     if (!hits.length) {
       box.replaceChildren(el('p', { class: 'search-hits__empty', text: `Kein Pokémon gefunden für „${state.query}“.` }));
@@ -327,12 +327,13 @@
 
   function renderMeta() {
     const date = data.sources.gameMasterDate ? formatDate(data.sources.gameMasterDate) : 'unbekannt';
-    // Erschienene je Art; Angekündigte (beider Arten) zählen extra.
+    // Erschienene je Art; Angekündigte (aller Arten) zählen extra. Sonder-Bosse sind keine Angreifer.
     const released = (kind) => data.pokemon.filter((p) => p.kind === kind && !isUpcoming(p)).length;
-    const upcomingCount = data.pokemon.filter(isUpcoming).length;
+    const upcomingCount = data.pokemon.filter((p) => p.kind !== 'boss' && isUpcoming(p)).length;
     document.getElementById('data-meta').textContent = [
       `${released('dynamax')} Dynamax`,
       `${released('gigantamax')} Gigadynamax`,
+      released('special') ? `${released('special')} Spezial` : null,
       upcomingCount ? `${upcomingCount} angekündigt` : null,
       `Spieldaten vom ${date}`,
     ].filter(Boolean).join(' · ');

@@ -127,6 +127,22 @@ const ANNOUNCED_GMAX = [
 // Legendäre Dynamax-Pokémon, die nie Boss eines Max-Kampfs waren: Dakuma gab es nur über Spezialforschung,
 // Wulaosu nur als Entwicklung daraus.
 const NOT_MAX_BATTLE_BOSSES = new Set(['KUBFU', 'URSHIFU']);
+// Pokémon, die sich nicht dynamaximieren, im Max-Kampf aber mit einer eigenen Max-Attacke kämpfen (Zuordnung in
+// den Spieldaten: SOURDOUGH_MOVE_MAPPING_SETTINGS). Stärke auf Stufe 3: Gigantenhieb und Gigantenstoß wie eine normale
+// Max-Attacke (350), Dynamax-Kanone wie eine G-Max-Attacke (450) – Bulbapedia, "Max Move (GO)" und "Dynamax Cannon".
+// Dyna-Wall und Dyna-Kur können sie wie alle anderen. label: deutscher Formname aus den offiziellen Spieltexten.
+const SPECIAL_MAX = [
+  { name: 'Zacian', formId: 'ZACIAN_CROWNED_SWORD', move: 'BEHEMOTH_BLADE', power: 350, label: 'König des Schwertes' },
+  { name: 'Zamazenta', formId: 'ZAMAZENTA_CROWNED_SHIELD', move: 'BEHEMOTH_BASH', power: 350, label: 'König des Schildes' },
+  { name: 'Eternatus', formId: null, move: 'DYNAMAX_CANNON', power: 450, label: null },
+];
+// Sonder-Bosse, die man selbst nicht einsetzen kann: Eternamax-Endynalos, 6-Sterne-Max-Kampf bei besonderen Events
+// (bis 100 Personen, danach nicht fangbar).
+const SPECIAL_BOSSES = [
+  { name: 'Eternatus', formId: 'ETERNATUS_ETERNAMAX', label: 'Unendynamax', bossTier: 6 },
+];
+// PokeAPI-Namen der Formen, die sich nicht nach der Regel ableiten lassen (für die Bilder).
+const POKEAPI_FORM_SLUGS = { ZACIAN_CROWNED_SWORD: 'zacian-crowned', ZAMAZENTA_CROWNED_SHIELD: 'zamazenta-crowned' };
 // So schlicht kündigt das Wiki an, wenn ein Pokémon einfach überall erscheint. Jeder andere Satz
 // (ein Event, Regionen, Tickets) kann heißen, dass das Wiki-Datum nicht für alle gilt.
 const WIKI_PLAIN_RELEASE = /^Dynamax [^.]* will be released\.$/;
@@ -386,6 +402,7 @@ function gmaxMoveFor(index, speciesId, formId) {
 // Sonst null – Bosse mit 1 bis 3 Sternen zeigt die Seite nicht.
 function bossTierOf(settings, kind) {
   if (kind === 'gigantamax') return 6;
+  if (kind !== 'dynamax') return null; // Sonder-Angreifer sind keine Bosse, Sonder-Bosse tragen ihre Stufe selbst
   const legendary = ['POKEMON_CLASS_LEGENDARY', 'POKEMON_CLASS_MYTHIC'].includes(settings.pokemonClass);
   return legendary && !NOT_MAX_BATTLE_BOSSES.has(settings.pokemonId) ? 5 : null;
 }
@@ -440,7 +457,7 @@ function pokeApiMoveSlug(moveId) {
 
 function pokeApiPokemonSlug(speciesId, formId, gmax) {
   let slug = speciesId.toLowerCase().replace(/_/g, '-');
-  if (formId) slug = formId.toLowerCase().replace(/_/g, '-');
+  if (formId) slug = POKEAPI_FORM_SLUGS[formId] ?? formId.toLowerCase().replace(/_/g, '-');
   else if (speciesId === 'TOXTRICITY') slug = 'toxtricity-amped';
   return gmax ? `${slug}-gmax` : slug;
 }
@@ -509,7 +526,7 @@ function buildEntry(index, source, kind, moveNames) {
   const key = `${kind}-${(formId ?? speciesId).toLowerCase()}`;
   const entry = {
     key,
-    kind, // "dynamax" oder "gigantamax"
+    kind, // "dynamax", "gigantamax", "special" (Max-Kampf ohne Dynamax, feste Max-Attacke) oder "boss" (nur Boss)
     speciesId,
     formId,
     dex: index.dexById.get(speciesId) ?? null,
@@ -525,13 +542,22 @@ function buildEntry(index, source, kind, moveNames) {
     fastMoves: fast,
     chargedMoves: charged,
     gmaxMove: null,
+    // Feste Max-Attacke der Sonder-Angreifer ({ id, name, type, power }), sonst null.
+    maxMove: null,
     releaseDate: source.releaseDate ?? null,
     // Weltregion, in der das Pokémon ausschließlich erscheint (aus RELEASE_NOTES), sonst null.
     region: source.region ?? null,
     // Boss eines 5- oder 6-Sterne-Max-Kampfs (Seite Max-Konter), sonst null.
-    bossTier: bossTierOf(settings, kind),
+    bossTier: kind === 'boss' ? source.bossTier : bossTierOf(settings, kind),
   };
 
+  if (kind === 'special') {
+    // Die Spieldaten ordnen der Form ihre Max-Attacke zu; Name und Stärke kommen aus SPECIAL_MAX.
+    const moveId = gmaxMoveFor(index, speciesId, formId);
+    const move = moveId && index.moves.get(moveId);
+    if (!move || !move.vfxName.endsWith(source.move.toLowerCase())) return { error: `Keine passende Max-Attacke in den Spieldaten: ${source.name} ${formId ?? ''}` };
+    entry.maxMove = { id: moveId, name: moveNames.get(source.move) ?? titleCase(source.move), type: typeKey(move.pokemonType), power: source.power };
+  }
   if (kind === 'gigantamax') {
     const moveId = gmaxMoveFor(index, speciesId, formId);
     const move = moveId && index.moves.get(moveId);
@@ -577,20 +603,21 @@ async function main() {
 
   console.log('3/5 Deutsche Namen laden …');
   const moveIds = new Set();
-  for (const src of [...dynamax, ...gigantamax]) {
+  for (const src of [...dynamax, ...gigantamax, ...SPECIAL_MAX, ...SPECIAL_BOSSES]) {
     const sid = speciesIdFromName(src.name);
-    const s = findSettings(index, sid, formIdFromWiki(sid, src.form));
+    const s = findSettings(index, sid, src.formId ?? formIdFromWiki(sid, src.form));
     for (const id of [...(s?.quickMoves ?? []), ...(s?.eliteQuickMove ?? []), ...(s?.cinematicMoves ?? []), ...(s?.eliteCinematicMove ?? [])]) {
       const name = moveName(index, id);
       if (name) moveIds.add(name);
     }
   }
+  for (const s of SPECIAL_MAX) moveIds.add(s.move);
   const moveNames = await loadMoveNames(moveIds);
   const maxMoveNames = await loadMaxMoveNames(index);
 
   const entries = [];
   const errors = [];
-  for (const [list, kind] of [[dynamax, 'dynamax'], [gigantamax, 'gigantamax']]) {
+  for (const [list, kind] of [[dynamax, 'dynamax'], [gigantamax, 'gigantamax'], [SPECIAL_MAX, 'special'], [SPECIAL_BOSSES, 'boss']]) {
     for (const src of list) {
       const { entry, error } = buildEntry(index, src, kind, moveNames);
       if (error) errors.push(error); else entries.push(entry);
@@ -601,6 +628,10 @@ async function main() {
     if (!e.dex) return;
     const species = await cachedJson(`pokeapi/species-${e.dex}`, `${POKEAPI}/pokemon-species/${e.dex}`).catch(() => null);
     const base = germanName(species?.names) ?? e.nameEn;
+    // Sonder-Einträge tragen ihren deutschen Formnamen selbst (PokeAPI kennt diese Formen nicht unter ihrem Namen).
+    const special = [...SPECIAL_MAX, ...SPECIAL_BOSSES].find((s) => s.formId === e.formId && speciesIdFromName(s.name) === e.speciesId);
+    if (e.kind === 'boss') { e.name = `${special.label}-${base}`; return; }
+    if (e.kind === 'special') { e.name = special.label ? `${base} (${special.label})` : base; return; }
     const formLabel = e.formId ? ` (${await germanFormName(e)})` : '';
     e.name = e.kind === 'gigantamax' ? `Gigadynamax-${base}${formLabel}` : `${base}${formLabel}`;
   });
