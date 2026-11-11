@@ -124,9 +124,10 @@ const ANNOUNCED_GMAX = [
   // „Naturzone: Global“ am 14./15.11.2026: https://pokemongo.com/de/gowildarea/global
   { name: 'Duraludon', releaseDate: '2026-11-14' },
 ];
-// Legendäre Dynamax-Pokémon, die nie Boss eines Max-Kampfs waren: Dakuma gab es nur über Spezialforschung,
-// Wulaosu nur als Entwicklung daraus.
-const NOT_MAX_BATTLE_BOSSES = new Set(['KUBFU', 'URSHIFU']);
+// Legendäre und mysteriöse Dynamax-Pokémon, die nie Boss eines Max-Kampfs waren: Dakuma gab es nur über
+// Spezialforschung, Wulaosu nur als Entwicklung daraus, Meltan nur aus dem GO Pass "Into the Wild" (November 2026),
+// Melmetal nur als Entwicklung daraus.
+const NOT_MAX_BATTLE_BOSSES = new Set(['KUBFU', 'URSHIFU', 'MELTAN', 'MELMETAL']);
 // Pokémon, die sich nicht dynamaximieren, im Max-Kampf aber mit einer eigenen Max-Attacke kämpfen (Zuordnung in
 // den Spieldaten: SOURDOUGH_MOVE_MAPPING_SETTINGS). Stärke auf Stufe 3: Gigantenhieb und Gigantenstoß wie eine normale
 // Max-Attacke (350), Dynamax-Kanone wie eine G-Max-Attacke (450) – Bulbapedia, "Max Move (GO)" und "Dynamax Cannon".

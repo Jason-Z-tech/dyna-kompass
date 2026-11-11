@@ -126,7 +126,7 @@ Die Werte sind ein Vergleich untereinander, keine exakte Schadensberechnung gege
 
 - **Bosse:** 6 Sterne sind alle Gigadynamax-Pokémon, 5 Sterne alle legendären Dynamax-Pokémon (Klasse aus den
   Spieldaten) – außer denen in `NOT_MAX_BATTLE_BOSSES` in `scripts/build-data.mjs` (Dakuma gab es nur über
-  Spezialforschung, Wulaosu nur als Entwicklung). Das Daten-Skript schreibt die Stufe als `bossTier` in die Daten.
+  Spezialforschung, Meltan nur aus dem GO Pass, Wulaosu und Melmetal nur als Entwicklung). Das Daten-Skript schreibt die Stufe als `bossTier` in die Daten.
   Sonder-Bosse wie Unendynamax-Endynalos stehen in `SPECIAL_BOSSES` (Art `boss`: nur Boss, nie Konter).
 - **Sonder-Angreifer** (`SPECIAL_MAX`, Art `special`): Max-Attacke laut Spieldaten (`SOURDOUGH_MOVE_MAPPING_SETTINGS`),
   Stärke auf Stufe 3: Gigantenhieb und Gigantenstoß 350 wie eine Max-Attacke, Dynamax-Kanone 450 wie G-Max
