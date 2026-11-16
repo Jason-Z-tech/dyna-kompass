@@ -201,6 +201,8 @@ async function testRanking(page, vp) {
   check(flyingChip, `${tag} Suche: Glurak nicht in der Flug-Liste`);
   if (flyingChip) {
     await page.click('[data-test="flying-chip"]');
+    // Am Handy scrollt die Seite danach sanft zur Liste – abwarten, bevor weitergeklickt wird.
+    await new Promise((r) => setTimeout(r, 900));
     s = await rankingState(page);
     check(s.type === 'FLYING' && s.cards.some((c) => c.name.includes('Glurak')), `${tag} Klick auf Treffer-Chip springt nicht zu Flug`);
     // Der Platz im Chip ist derselbe wie auf der Karte – auch wenn die Suche die Liste kürzt.
@@ -223,14 +225,22 @@ async function testRanking(page, vp) {
     ['Riffex Hoch', (p) => p.form === 'TOXTRICITY_AMPED'],
     ['riffex hoch-form', (p) => p.form === 'TOXTRICITY_AMPED'],
     ['riffex hoch und tiefform', () => true],
+    ['riffex hoch und', (p) => p.form === 'TOXTRICITY_AMPED'],
     ['G-Max Riffex', (p) => p.kind === 'gigantamax'],
+    ['G-Max-Riffex', (p) => p.kind === 'gigantamax'],
     ['gigadynamax riffex', (p) => p.kind === 'gigantamax'],
+    ['Dynamax-Riffex', (p) => p.kind === 'dynamax'],
+    ['dynamax riffex', (p) => p.kind === 'dynamax'],
     ['Toxtricity Low Key', (p) => p.form === 'TOXTRICITY_LOW_KEY'],
   ]) {
     await page.type('#search', query);
     const got = await hitNames();
     check(JSON.stringify(got) === JSON.stringify(riffexNames(pred)), `${tag} Suche "${query}": ${got.join(', ') || 'nichts'} statt ${riffexNames(pred).join(', ')}`);
   }
+  // Wörter passen nicht über die Grenze zwischen deutschem und englischem Namen ("Endyna" nicht in "…Vespiquen dynamax").
+  await page.type('#search', 'Endyna');
+  const endyna = await hitNames();
+  check(endyna.length > 0 && endyna.every((n) => n.includes('Endynalos')), `${tag} Suche "Endyna": ${endyna.join(', ')}`);
   // Die Treffer stehen ohne Scrollen im Bild – am Handy direkt unter dem Suchfeld.
   const hitsBox = await page.eval(`(() => {
     const hits = document.getElementById('search-hits').getBoundingClientRect();
@@ -239,6 +249,14 @@ async function testRanking(page, vp) {
   })()`);
   check(hitsBox.top < hitsBox.height - 60 && (vp.width >= 1000 || hitsBox.gap <= 24),
     `${tag} Suchtreffer nicht direkt sichtbar (oben bei ${hitsBox.top} von ${hitsBox.height} px, ${hitsBox.gap} px unter dem Suchfeld)`);
+  // Ein Tipp auf einen Treffer zeigt die Liste des Typs – auch am Handy, wo sie unter den Filtern liegt.
+  await page.eval(`window.scrollTo(0, 0)`);
+  await page.type('#search', 'riffex');
+  await page.eval(`document.querySelector('.search-hits__places button').dataset.test = 'riffex-chip'`);
+  await page.click('[data-test="riffex-chip"]');
+  await new Promise((r) => setTimeout(r, 900));
+  const listTop = await page.eval(`Math.round(document.getElementById('ranking').getBoundingClientRect().top)`);
+  check(listTop >= 0 && listTop < vp.height - 100, `${tag} Tipp auf Suchtreffer: Liste beginnt bei ${listTop} px, nicht im Bild (${vp.height} px)`);
   // Findet die Suche nichts, verweist die leere Liste nicht auf Treffer, die es nicht gibt.
   await page.type('#search', 'xyzq');
   const emptyText = await page.eval(`document.querySelector('#ranking .state')?.textContent ?? ''`);
@@ -331,6 +349,14 @@ async function testCounters(page, vp) {
       check(balanced.filter((m) => m.role === 'tank').length === 1, `${tag} Boss ${key}: Ausgewogen ohne genau 1 Tank`);
       check(safe.some((m) => m.role === 'healer') && safe.some((m) => m.role === 'tank'), `${tag} Boss ${key}: Sicher ohne Tank+Heiler`);
       check(s.teams.every((t) => new Set(t.map((m) => m.name)).size === t.length), `${tag} Boss ${key}: doppeltes Pokémon im Team`);
+      // Zusammengefasste Formen ("… (Hoch-Form oder Tief-Form)") gibt es nur bei gleicher Art und gleichen Typen.
+      const merged = s.teams.flat().map((m) => m.name).filter((n) => n.includes(' oder '));
+      const mergedOk = await page.eval(`${JSON.stringify(merged)}.every((n) => {
+        const m = /^(.+) \\((.+)\\)$/.exec(n);
+        const forms = m ? m[2].split(' oder ').map((f) => window.POKEMON_DATA.pokemon.find((p) => p.name === m[1] + ' (' + f + ')')) : [];
+        return forms.length > 1 && forms.every((p) => p && p.kind === forms[0].kind && p.types.join() === forms[0].types.join());
+      })`);
+      check(mergedOk, `${tag} Boss ${key}: falsch zusammengefasste Formen ${merged.join(', ')}`);
       check(s.rows === 12, `${tag} Boss ${key}: ${s.rows} statt 12 Zeilen`);
       // Den Sonder-Boss kann man nicht einsetzen: nie in Teams oder Listen.
       check(!(await page.eval(`[...document.querySelectorAll('#role-panel .row__name span:first-child, .member__name span:last-child')].some((x) => x.textContent === 'Unendynamax-Endynalos')`)),

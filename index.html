@@ -50,9 +50,6 @@
       <button class="search__clear" id="search-clear" type="button" aria-label="Suche leeren" hidden>×</button>
     </div>
 
-    <!-- Direkt unter dem Suchfeld, damit die Treffer am Handy ohne Scrollen sichtbar sind. -->
-    <section class="search-hits" id="search-hits" aria-live="polite" hidden></section>
-
     <fieldset class="segmented" id="kind-filter">
       <legend class="control-label">Art</legend>
       <div class="segmented__options">
@@ -79,6 +76,9 @@
       </label>
       <button class="reset-btn" id="reset" type="button" hidden>Filter zurücksetzen</button>
     </div>
+
+    <!-- Unter allen Filtern wie am Computer sichtbar (Tab-Reihenfolge); am Handy per CSS direkt unter dem Suchfeld. -->
+    <section class="search-hits" id="search-hits" aria-live="polite" hidden></section>
   </form>
 
   <main id="ranking" class="ranking" tabindex="-1">

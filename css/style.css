@@ -555,6 +555,10 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
 .search-hits__places { display: flex; flex-wrap: wrap; gap: 6px; }
 .search-hits__places button { min-height: 32px; }
 .search-hits__empty, .search-hits__more, .search-hits__none { margin: 0; color: var(--muted); font-size: .9rem; }
+/* Lange Suchen ohne Leerzeichen stehen im Text – sie dürfen umbrechen statt über den Rand zu laufen. */
+.search-hits__empty, .state p { overflow-wrap: anywhere; }
+/* Bis 999 px stehen die Treffer direkt unter dem Suchfeld, damit man sie am Handy ohne Scrollen sieht. */
+@media (max-width: 999.98px) { .controls .search, .controls .search-hits { order: -1; } }
 .search-hits__more { margin-top: 10px; }
 
 /* ---------- Bilder ---------- */
@@ -1020,8 +1024,6 @@ button.type-chip:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -10
   .type-bar .scroll-arrow { display: none; }
   .controls { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
   .controls .search { grid-column: auto; align-self: end; }
-  /* Suchfeld, Art und Sortierung teilen sich hier eine Zeile – die Treffer kommen unter alle Filter. */
-  .controls .search-hits { order: 1; }
   .teams__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .method__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

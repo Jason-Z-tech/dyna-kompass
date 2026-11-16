@@ -32,34 +32,38 @@
 
   // Suche: Groß- und Kleinschreibung, Akzente, Klammern, Bindestriche und Leerzeichen spielen keine Rolle, jedes Wort
   // muss vorkommen ("riffex tiefform" findet "Riffex (Tief-Form)"). "und", "oder" und Kommas trennen mehrere Suchen
-  // ("riffex hoch und tiefform"). Die Art zählt mit: "G-Max Riffex", "Gigadynamax Riffex", "Dynamax Riffex".
+  // ("riffex hoch und tiefform"). Ganze Art-Wörter grenzen auf die Art ein: "Dynamax-Riffex", "G-Max Riffex".
   const KIND_WORDS = { dynamax: 'dynamax', gigantamax: 'gigadynamax gigantamax gmax', special: 'spezial' };
+  const KIND_OF_WORD = { dynamax: 'dynamax', gigadynamax: 'gigantamax', gigantamax: 'gigantamax', gmax: 'gigantamax', spezial: 'special' };
   const squash = (text) => text.toLocaleLowerCase('de').normalize('NFD').replace(/\p{M}+/gu, '').replace(/[^\p{L}\p{N}]+/gu, '');
-  const withGmax = (text) => text.replace(/\bg[\s-]*max\b/g, 'gmax');
+  const withGmax = (text) => text.toLocaleLowerCase('de').replace(/\bg[\s-]*max\b/g, 'gmax');
   const searchTexts = new WeakMap();
   let parsed = { query: null, alternatives: [] };
 
+  // Jedes Feld für sich zusammengezogen und mit Leerzeichen getrennt: Suchwörter haben keine Leerzeichen und passen
+  // so nie über eine Feldgrenze (sonst fände "Endyna" auch "Honweisel Vespiquen dynamax").
   function searchText(pokemon) {
     if (!searchTexts.has(pokemon)) {
-      searchTexts.set(pokemon, squash(withGmax(`${pokemon.name} ${pokemon.nameEn} ${KIND_WORDS[pokemon.kind] ?? ''}`.toLocaleLowerCase('de'))));
+      searchTexts.set(pokemon, [pokemon.name, pokemon.nameEn, KIND_WORDS[pokemon.kind] ?? ''].map((t) => squash(withGmax(t))).join(' '));
     }
     return searchTexts.get(pokemon);
   }
 
   function queryAlternatives() {
     if (parsed.query !== state.query) {
-      const alternatives = state.query.toLocaleLowerCase('de').split(/\s+(?:und|oder)\s+|[,;/+&]/)
-        .map((part) => withGmax(part).split(/\s+/).map(squash).filter(Boolean))
+      const alternatives = state.query.toLocaleLowerCase('de').split(/\s+(?:und|oder)(?:\s+|$)|[,;/+&]/)
+        .map((part) => withGmax(part).split(/[^\p{L}\p{M}\p{N}]+/u).map(squash).filter(Boolean))
         .filter((words) => words.length);
       parsed = { query: state.query, alternatives };
     }
     return parsed.alternatives;
   }
 
+  const matchesWord = (pokemon, word) => (KIND_OF_WORD[word] ? pokemon.kind === KIND_OF_WORD[word] : searchText(pokemon).includes(word));
+
   function matchesQuery(pokemon) {
     if (!state.query) return true;
-    const text = searchText(pokemon);
-    return queryAlternatives().some((words) => words.every((word) => text.includes(word)));
+    return queryAlternatives().some((words) => words.every((word) => matchesWord(pokemon, word)));
   }
 
   // Rangliste eines Typs mit Art-Filter und Sortierung, ohne Suchfilter (für Platz-Nummern).
@@ -217,7 +221,7 @@
             ? el('div', { class: 'search-hits__places' }, places.map(({ type, entry }) => el('button', {
               type: 'button',
               class: `type-chip type-chip--small type-${slugOf(type)}${type === state.type ? ' is-current' : ''}`,
-              onclick: () => selectType(type),
+              onclick: () => { selectType(type); revealRankingIfBelow(); },
             }, [`${data.types[type]} · ${placeText(entry)}`])))
             : el('p', { class: 'search-hits__none', text: 'Ohne Elite-Attacken in keiner Liste.' }),
         ]),
@@ -301,14 +305,25 @@
     form.querySelector('#search').value = state.query;
   }
 
+  // Höhe der klebenden Typ-Leiste, die den oberen Bildrand verdeckt (ab 1000 px klebt sie nicht).
+  function typeBarOffset() {
+    const typeBar = document.querySelector('.type-bar');
+    return getComputedStyle(typeBar).position === 'sticky' ? typeBar.offsetHeight : 0;
+  }
+
+  // Ein Tipp auf einen Suchtreffer zeigt die Liste: Am Handy liegt sie unter den Filtern, oft außerhalb des Bildes.
+  function revealRankingIfBelow() {
+    const top = document.getElementById('ranking').getBoundingClientRect().top;
+    if (top > window.innerHeight - 120) window.scrollTo({ top: window.scrollY + top - typeBarOffset() - 8, behavior: 'smooth' });
+  }
+
   function selectType(type) {
     state.type = type;
     Dyna.writeHash({ typ: slugOf(type) });
     render();
     const bar = document.getElementById('type-bar');
     Dyna.centerInScroller(bar, bar.querySelector(`[data-type="${type}"]`));
-    const typeBar = document.querySelector('.type-bar');
-    const barOffset = getComputedStyle(typeBar).position === 'sticky' ? typeBar.offsetHeight : 0;
+    const barOffset = typeBarOffset();
     Dyna.revealIfAbove(document.getElementById('ranking'), barOffset + 8);
   }
 
@@ -328,19 +343,26 @@
 
   function bindControls() {
     const form = document.getElementById('controls');
-    // Enter bzw. "Suchen" auf der Handy-Tastatur: Tastatur schließen, damit die Treffer unter dem Suchfeld frei liegen.
+    // "Suchen" auf der Handy-Tastatur schließt die Tastatur, damit die Treffer unter dem Suchfeld frei liegen. Am
+    // Computer bleibt der Fokus im Feld, man kann weitertippen.
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (document.activeElement?.id === 'search') document.activeElement.blur();
+      if (document.activeElement?.id === 'search' && window.matchMedia('(pointer: coarse)').matches) document.activeElement.blur();
     });
     form.addEventListener('change', (e) => {
       // Die Suche aktualisiert schon beim Tippen. Ihr "change" beim Verlassen des Feldes würde
       // sonst neu zeichnen, während man gerade auf einen Treffer klickt – der Klick ginge verloren.
       if (e.target.id === 'search') return;
       const eliteChanged = e.target.id === 'elite';
+      // Am Handy stehen die Treffer über den Filtern. Ändert ein Filter ihre Zahl, bleibt der angetippte Filter
+      // trotzdem unter dem Finger – sonst träfe ein zweiter Tipp die Zeile darunter.
+      const anchor = e.target.closest('fieldset, .controls__row');
+      const before = anchor?.getBoundingClientRect().top;
       readControls();
       if (eliteChanged) recomputeRoles();
       render();
+      const shift = anchor ? anchor.getBoundingClientRect().top - before : 0;
+      if (shift) window.scrollBy({ top: shift, behavior: 'instant' });
     });
     document.getElementById('search').addEventListener('input', () => { readControls(); render(); });
     document.getElementById('search-clear').addEventListener('click', () => {

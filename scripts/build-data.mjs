@@ -380,20 +380,28 @@ async function loadMaxMoveNames(index) {
 // Deutsche Namen der G-Max-Attacken aus den Spieltexten, z. B. VN_BM_038 -> "Giga-Voltschlag" (die PokeAPI kennt sie
 // nicht). Die Max-Attacken haben in den Spieldaten keine Nummer; die Spieltexte zählen sie hinter Turmkick weiter:
 // VN_BM_001 = move_name_0409 ("Dyna-Brand"). Ob die Zählung noch stimmt, zeigen die Dyna-Attacken, deren Namen von
-// der PokeAPI kommen. Passt sie nicht mehr, bleiben die englischen Namen stehen.
+// der PokeAPI kommen. Passt sie nicht mehr, bleiben die englischen Namen stehen (Rückgabe null).
 const MAX_MOVE_TEXT_OFFSET = 408;
 function gmaxMoveNamer(textsRaw, index, maxMoveNames, hints) {
+  if (!Array.isArray(textsRaw?.data)) {
+    hints.push('Spieltexte (holoholo-text) nicht geladen – G-Max-Attacken bleiben englisch. Mit --refresh erneut bauen.');
+    return null;
+  }
   const texts = new Map();
-  for (let i = 0; i + 1 < (textsRaw?.data?.length ?? 0); i += 2) texts.set(textsRaw.data[i], textsRaw.data[i + 1]);
+  for (let i = 0; i + 1 < textsRaw.data.length; i += 2) texts.set(textsRaw.data[i], textsRaw.data[i + 1]);
   const textOf = (moveId) => {
     const n = Number(/^VN_BM_(\d+)$/.exec(moveId)?.[1]);
     return n ? texts.get(`move_name_${String(n + MAX_MOVE_TEXT_OFFSET).padStart(4, '0')}`) ?? null : null;
   };
-  const wrong = [...index.maxMoveByType].filter(([type, moveId]) => textOf(moveId) !== maxMoveNames[type]);
-  if (wrong.length) {
-    hints.push(`Spieltexte: Zählung der Max-Attacken passt nicht (${wrong.map(([type, id]) => `${id}: "${textOf(id)}" statt "${maxMoveNames[type]}"`).join(', ')}) – G-Max-Attacken bleiben englisch, MAX_MOVE_TEXT_OFFSET prüfen.`);
-    return () => null;
+  const checks = [...index.maxMoveByType].map(([type, moveId]) => ({ moveId, text: textOf(moveId), api: maxMoveNames[type] }));
+  const wrong = checks.filter((c) => c.text !== c.api);
+  const list = wrong.map((c) => `${c.moveId}: "${c.text}" statt "${c.api}"`).join(', ');
+  // Eine verschobene Zählung trifft (fast) keinen Namen; einzelne Abweichungen kommen von fehlenden PokeAPI-Namen.
+  if (!checks.length || wrong.length * 2 >= checks.length) {
+    hints.push(`Spieltexte: Zählung der Max-Attacken passt nicht (${list}) – G-Max-Attacken bleiben englisch, MAX_MOVE_TEXT_OFFSET prüfen.`);
+    return null;
   }
+  if (wrong.length) hints.push(`Spieltexte und PokeAPI nennen Dyna-Attacken verschieden (${list}) – fehlt ein PokeAPI-Name? Mit --refresh erneut bauen.`);
   return textOf;
 }
 
@@ -649,13 +657,14 @@ async function main() {
 
   const entries = [];
   const errors = [];
+  let gmaxNamesFromTexts = false;
   for (const [list, kind] of [[dynamax, 'dynamax'], [gigantamax, 'gigantamax'], [SPECIAL_MAX, 'special'], [SPECIAL_BOSSES, 'boss']]) {
     for (const src of list) {
       const { entry, error } = buildEntry(index, src, kind, moveNames);
       if (error) { errors.push(error); continue; }
-      if (entry.gmaxMove) {
+      if (entry.gmaxMove && gmaxMoveName) {
         const de = gmaxMoveName(entry.gmaxMove.id);
-        if (de) entry.gmaxMove.name = de; else hints.push(`Kein deutscher Name für ${entry.gmaxMove.id} (${entry.gmaxMove.name}) in den Spieltexten.`);
+        if (de) { entry.gmaxMove.name = de; gmaxNamesFromTexts = true; } else hints.push(`Kein deutscher Name für ${entry.gmaxMove.id} (${entry.gmaxMove.name}) in den Spieltexten.`);
       }
       entries.push(entry);
     }
@@ -711,7 +720,7 @@ async function main() {
       // Quelle der Korrekturen aus RELEASE_NOTES (weltweite Termine, Regionen).
       official: { name: 'pokemongo.com', url: 'https://pokemongo.com/de/news' },
       names: { name: 'PokeAPI', url: 'https://pokeapi.co/' },
-      texts: { name: 'holoholo-text', url: 'https://github.com/sora10pls/holoholo-text' },
+      ...(gmaxNamesFromTexts ? { texts: { name: 'holoholo-text', url: 'https://github.com/sora10pls/holoholo-text' } } : {}),
     },
     rules: {
       maxMovePower: MAX_MOVE_POWER, gmaxMovePower: GMAX_MOVE_POWER, stab: STAB,

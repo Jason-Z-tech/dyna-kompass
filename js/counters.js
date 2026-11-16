@@ -78,16 +78,18 @@
     return { moves, attackers: attackers.sort(byScore), tanks: tanks.sort(byScore), healers: healers.sort(byScore) };
   }
 
-  // Gleich gute Formen derselben Art, z. B. Riffex in Hoch- und Tief-Form: gleiche Art (Dynamax/Gigadynamax),
-  // gleicher Wert und dieselbe Attacke für diese Rolle – fürs Team ist es egal, welche Form man mitnimmt.
+  // Gleich gute Formen derselben Art, z. B. Riffex in Hoch- und Tief-Form: gleiche Art (Dynamax/Gigadynamax), gleiche
+  // Typen (sonst gelten andere Warnungen, z. B. Wulaosu Fokussierter/Fließender Stil), gleicher Wert und dieselbe
+  // Attacke samt Elite-Marke für diese Rolle – fürs Team ist es egal, welche Form man mitnimmt.
   function sameChoice(a, b) {
     const pa = a.pokemon;
     const pb = b.pokemon;
     if (pa === pb || pa.speciesId !== pb.speciesId || pa.kind !== pb.kind || pa.region !== pb.region) return false;
+    if (pa.types.join() !== pb.types.join()) return false;
     if (Math.abs(a.score - b.score) > 1e-9 * Math.max(1, Math.abs(a.score))) return false;
-    return a.role
-      ? a.role.maxMoveName === b.role?.maxMoveName && a.role.fastMove.id === b.role?.fastMove.id
-      : a.fast.id === b.fast?.id;
+    const fa = a.role ? a.role.fastMove : a.fast;
+    const fb = b.role ? b.role.fastMove : b.fast;
+    return (!a.role || a.role.maxMoveName === b.role?.maxMoveName) && fa.id === fb?.id && Boolean(fa.elite) === Boolean(fb?.elite);
   }
 
   // "Riffex (Hoch-Form)" + "Riffex (Tief-Form)" -> "Riffex (Hoch-Form oder Tief-Form)". Ohne gemeinsamen Namen vor der
