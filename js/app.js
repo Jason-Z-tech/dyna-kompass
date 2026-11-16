@@ -30,10 +30,36 @@
 
   const matchesKind = (pokemon, kind = state.kind) => kind === 'all' || pokemon.kind === kind;
 
+  // Suche: Groß- und Kleinschreibung, Akzente, Klammern, Bindestriche und Leerzeichen spielen keine Rolle, jedes Wort
+  // muss vorkommen ("riffex tiefform" findet "Riffex (Tief-Form)"). "und", "oder" und Kommas trennen mehrere Suchen
+  // ("riffex hoch und tiefform"). Die Art zählt mit: "G-Max Riffex", "Gigadynamax Riffex", "Dynamax Riffex".
+  const KIND_WORDS = { dynamax: 'dynamax', gigantamax: 'gigadynamax gigantamax gmax', special: 'spezial' };
+  const squash = (text) => text.toLocaleLowerCase('de').normalize('NFD').replace(/\p{M}+/gu, '').replace(/[^\p{L}\p{N}]+/gu, '');
+  const withGmax = (text) => text.replace(/\bg[\s-]*max\b/g, 'gmax');
+  const searchTexts = new WeakMap();
+  let parsed = { query: null, alternatives: [] };
+
+  function searchText(pokemon) {
+    if (!searchTexts.has(pokemon)) {
+      searchTexts.set(pokemon, squash(withGmax(`${pokemon.name} ${pokemon.nameEn} ${KIND_WORDS[pokemon.kind] ?? ''}`.toLocaleLowerCase('de'))));
+    }
+    return searchTexts.get(pokemon);
+  }
+
+  function queryAlternatives() {
+    if (parsed.query !== state.query) {
+      const alternatives = state.query.toLocaleLowerCase('de').split(/\s+(?:und|oder)\s+|[,;/+&]/)
+        .map((part) => withGmax(part).split(/\s+/).map(squash).filter(Boolean))
+        .filter((words) => words.length);
+      parsed = { query: state.query, alternatives };
+    }
+    return parsed.alternatives;
+  }
+
   function matchesQuery(pokemon) {
     if (!state.query) return true;
-    const q = state.query.toLocaleLowerCase('de');
-    return pokemon.name.toLocaleLowerCase('de').includes(q) || pokemon.nameEn.toLowerCase().includes(q);
+    const text = searchText(pokemon);
+    return queryAlternatives().some((words) => words.every((word) => text.includes(word)));
   }
 
   // Rangliste eines Typs mit Art-Filter und Sortierung, ohne Suchfilter (für Platz-Nummern).
@@ -224,11 +250,19 @@
     } else {
       body = el('div', { class: 'state' }, [
         el('p', { class: 'state__title', text: `Keine Treffer bei ${data.types[state.type]}.` }),
-        el('p', { text: state.query ? 'Oben bei den Suchtreffern siehst du, in welchen Typen das Pokémon vorkommt.' : 'Mit diesen Filtern gibt es hier keine Pokémon.' }),
+        el('p', { text: emptyHint() }),
         el('button', { type: 'button', class: 'reset-btn', text: 'Filter zurücksetzen', onclick: resetFilters }),
       ]);
     }
     main.replaceChildren(header, body);
+  }
+
+  // Erklärt eine leere Liste: Ohne Suche liegt es an den Filtern; mit Suche stehen die Typen der Treffer oben –
+  // außer die Suche findet gar nichts.
+  function emptyHint() {
+    if (!state.query) return 'Mit diesen Filtern gibt es hier keine Pokémon.';
+    const anyHit = data.pokemon.some((p) => p.kind !== 'boss' && matchesKind(p) && matchesQuery(p));
+    return anyHit ? 'Oben bei den Suchtreffern siehst du, in welchen Typen das Pokémon vorkommt.' : `Kein Pokémon passt zu „${state.query}“.`;
   }
 
   function renderResetButton() {
@@ -294,7 +328,11 @@
 
   function bindControls() {
     const form = document.getElementById('controls');
-    form.addEventListener('submit', (e) => e.preventDefault());
+    // Enter bzw. "Suchen" auf der Handy-Tastatur: Tastatur schließen, damit die Treffer unter dem Suchfeld frei liegen.
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (document.activeElement?.id === 'search') document.activeElement.blur();
+    });
     form.addEventListener('change', (e) => {
       // Die Suche aktualisiert schon beim Tippen. Ihr "change" beim Verlassen des Feldes würde
       // sonst neu zeichnen, während man gerade auf einen Treffer klickt – der Klick ginge verloren.

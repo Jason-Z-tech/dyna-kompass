@@ -219,7 +219,7 @@ const Dyna = (() => {
   function renderSources(data) {
     const target = document.getElementById('sources');
     if (!target) return;
-    const { gameMaster, releases, official, names, gameMasterDate } = data.sources;
+    const { gameMaster, releases, official, names, texts, gameMasterDate } = data.sources;
     const link = (source) => el('a', { href: source.url, text: source.name });
     const hasArtwork = data.pokemon.some((p) => p.image);
     target.replaceChildren(
@@ -227,7 +227,8 @@ const Dyna = (() => {
       'Erscheinungsdaten aus dem ', link(releases),
       // Eine ältere Daten-Datei aus dem Browser-Cache kennt diese Quelle noch nicht.
       ...(official ? [', bei Vor-Ort-Events und Regionen nach den Ankündigungen auf ', link(official)] : []),
-      ', deutsche Namen', hasArtwork ? ' und Bilder' : '', ' von ', link(names), '. ',
+      ', deutsche Namen', hasArtwork ? ' und Bilder' : '', ' von ', link(names),
+      ...(texts ? [', Namen der G-Max-Attacken aus den Spieltexten von ', link(texts)] : []), '. ',
       `Berechnet für Level ${data.rules.level} mit ${data.rules.iv}.`,
       // Im Plan-B-Modus (ohne Bilder) entfällt der Artwork-Hinweis automatisch.
       hasArtwork ? ' Artworks © Pokémon/Nintendo/Creatures/GAME FREAK.' : '',

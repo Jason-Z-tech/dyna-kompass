@@ -23,6 +23,7 @@ const WIKI_API = 'https://pokemongo.fandom.com/api.php?action=parse&prop=wikitex
 const WIKI_DYNAMAX_PAGE = 'List_of_Dynamax_Pok%C3%A9mon_by_release_date';
 const WIKI_GIGANTAMAX_PAGE = 'Gigantamax';
 const POKEAPI = 'https://pokeapi.co/api/v2';
+const TEXTS_DE_URL = 'https://raw.githubusercontent.com/sora10pls/holoholo-text/main/Release/German/de-de_raw.json';
 
 // Max-Attacken auf Stufe 3 (Quelle für alle Max-Werte: Pokémon GO Wiki, Seite "Max Moves").
 const MAX_MOVE_POWER = 350;
@@ -106,6 +107,9 @@ const WIKI_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 //   releaseDate  Tag, ab dem das Pokémon weltweit erhältlich ist (ersetzt das Wiki-Datum)
 //   region       Weltregion, in der es ausschließlich erscheint (löschen, sobald es überall erscheint)
 const RELEASE_NOTES = {
+  // Wiki: 16.11.2024 – nur mit Ticket vor Ort (Naturzone Fukuoka). Weltweit erst bei der „Naturzone: Global“ am
+  // 23./24.11.2024: https://pokemongo.com/de/gowildarea/global
+  Toxtricity: { releaseDate: '2024-11-23' },
   // Wiki: 6.11.2026 – dann aber nur mit Ticket vor Ort (Sendai, Mexiko-Stadt). Weltweit erst bei der
   // „Naturzone: Global“: https://pokemongo.com/de/gowildarea/global
   Dialga: { releaseDate: '2026-11-14' },
@@ -373,6 +377,26 @@ async function loadMaxMoveNames(index) {
   return result;
 }
 
+// Deutsche Namen der G-Max-Attacken aus den Spieltexten, z. B. VN_BM_038 -> "Giga-Voltschlag" (die PokeAPI kennt sie
+// nicht). Die Max-Attacken haben in den Spieldaten keine Nummer; die Spieltexte zählen sie hinter Turmkick weiter:
+// VN_BM_001 = move_name_0409 ("Dyna-Brand"). Ob die Zählung noch stimmt, zeigen die Dyna-Attacken, deren Namen von
+// der PokeAPI kommen. Passt sie nicht mehr, bleiben die englischen Namen stehen.
+const MAX_MOVE_TEXT_OFFSET = 408;
+function gmaxMoveNamer(textsRaw, index, maxMoveNames, hints) {
+  const texts = new Map();
+  for (let i = 0; i + 1 < (textsRaw?.data?.length ?? 0); i += 2) texts.set(textsRaw.data[i], textsRaw.data[i + 1]);
+  const textOf = (moveId) => {
+    const n = Number(/^VN_BM_(\d+)$/.exec(moveId)?.[1]);
+    return n ? texts.get(`move_name_${String(n + MAX_MOVE_TEXT_OFFSET).padStart(4, '0')}`) ?? null : null;
+  };
+  const wrong = [...index.maxMoveByType].filter(([type, moveId]) => textOf(moveId) !== maxMoveNames[type]);
+  if (wrong.length) {
+    hints.push(`Spieltexte: Zählung der Max-Attacken passt nicht (${wrong.map(([type, id]) => `${id}: "${textOf(id)}" statt "${maxMoveNames[type]}"`).join(', ')}) – G-Max-Attacken bleiben englisch, MAX_MOVE_TEXT_OFFSET prüfen.`);
+    return () => null;
+  }
+  return textOf;
+}
+
 function findSettings(index, speciesId, formId) {
   const all = index.pokemon.get(speciesId);
   if (!all) return null;
@@ -621,13 +645,19 @@ async function main() {
   for (const s of SPECIAL_MAX) moveIds.add(s.move);
   const moveNames = await loadMoveNames(moveIds);
   const maxMoveNames = await loadMaxMoveNames(index);
+  const gmaxMoveName = gmaxMoveNamer(await cachedJson('texts-de', TEXTS_DE_URL, { refreshable: true }).catch(() => null), index, maxMoveNames, hints);
 
   const entries = [];
   const errors = [];
   for (const [list, kind] of [[dynamax, 'dynamax'], [gigantamax, 'gigantamax'], [SPECIAL_MAX, 'special'], [SPECIAL_BOSSES, 'boss']]) {
     for (const src of list) {
       const { entry, error } = buildEntry(index, src, kind, moveNames);
-      if (error) errors.push(error); else entries.push(entry);
+      if (error) { errors.push(error); continue; }
+      if (entry.gmaxMove) {
+        const de = gmaxMoveName(entry.gmaxMove.id);
+        if (de) entry.gmaxMove.name = de; else hints.push(`Kein deutscher Name für ${entry.gmaxMove.id} (${entry.gmaxMove.name}) in den Spieltexten.`);
+      }
+      entries.push(entry);
     }
   }
 
@@ -668,7 +698,10 @@ async function main() {
     if (resize.status !== 0) throw new Error(`Bilder verkleinern fehlgeschlagen:\n${resize.stderr || resize.stdout}`);
   }
 
-  entries.sort((a, b) => (a.dex ?? 9999) - (b.dex ?? 9999) || a.kind.localeCompare(b.kind));
+  // Formen einer Art immer in derselben Reihenfolge, die Normalform zuerst (z. B. Riffex: Hoch- vor Tief-Form) – bei
+  // gleichen Werten entscheidet sonst die Reihenfolge im Wiki, und die wechselt zwischen Dynamax und Gigadynamax.
+  const formOrder = (e) => (!e.formId || e.formId.endsWith('_NORMAL') ? '' : e.formId);
+  entries.sort((a, b) => (a.dex ?? 9999) - (b.dex ?? 9999) || a.kind.localeCompare(b.kind) || formOrder(a).localeCompare(formOrder(b)));
   const output = {
     generatedAt: new Date().toISOString(),
     sources: {
@@ -678,6 +711,7 @@ async function main() {
       // Quelle der Korrekturen aus RELEASE_NOTES (weltweite Termine, Regionen).
       official: { name: 'pokemongo.com', url: 'https://pokemongo.com/de/news' },
       names: { name: 'PokeAPI', url: 'https://pokeapi.co/' },
+      texts: { name: 'holoholo-text', url: 'https://github.com/sora10pls/holoholo-text' },
     },
     rules: {
       maxMovePower: MAX_MOVE_POWER, gmaxMovePower: GMAX_MOVE_POWER, stab: STAB,

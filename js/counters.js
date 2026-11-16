@@ -78,14 +78,36 @@
     return { moves, attackers: attackers.sort(byScore), tanks: tanks.sort(byScore), healers: healers.sort(byScore) };
   }
 
-  // Nimmt die besten Einträge, ohne dieselbe Art doppelt ins Team zu setzen.
+  // Gleich gute Formen derselben Art, z. B. Riffex in Hoch- und Tief-Form: gleiche Art (Dynamax/Gigadynamax),
+  // gleicher Wert und dieselbe Attacke für diese Rolle – fürs Team ist es egal, welche Form man mitnimmt.
+  function sameChoice(a, b) {
+    const pa = a.pokemon;
+    const pb = b.pokemon;
+    if (pa === pb || pa.speciesId !== pb.speciesId || pa.kind !== pb.kind || pa.region !== pb.region) return false;
+    if (Math.abs(a.score - b.score) > 1e-9 * Math.max(1, Math.abs(a.score))) return false;
+    return a.role
+      ? a.role.maxMoveName === b.role?.maxMoveName && a.role.fastMove.id === b.role?.fastMove.id
+      : a.fast.id === b.fast?.id;
+  }
+
+  // "Riffex (Hoch-Form)" + "Riffex (Tief-Form)" -> "Riffex (Hoch-Form oder Tief-Form)". Ohne gemeinsamen Namen vor der
+  // Klammer bleibt der Name der ersten Form stehen.
+  function formsName(pokemons) {
+    const parts = pokemons.map((p) => /^(.+) \((.+)\)$/.exec(p.name));
+    if (parts.length < 2 || parts.some((m) => !m || m[1] !== parts[0][1])) return pokemons[0].name;
+    return `${parts[0][1]} (${parts.map((m) => m[2]).join(' oder ')})`;
+  }
+
+  // Nimmt die besten Einträge, ohne dieselbe Art doppelt ins Team zu setzen. Gleich gute Formen derselben Art
+  // stehen mit im Namen.
   function pickDistinct(list, count, usedSpecies) {
     const picked = [];
     for (const entry of list) {
       if (picked.length === count) break;
       if (usedSpecies.has(entry.pokemon.speciesId)) continue;
       usedSpecies.add(entry.pokemon.speciesId);
-      picked.push(entry);
+      const twins = list.filter((other) => sameChoice(entry, other)).map((other) => other.pokemon);
+      picked.push({ ...entry, name: formsName([entry.pokemon, ...twins]) });
     }
     return picked;
   }
@@ -225,7 +247,7 @@
       el('div', { class: 'member__info' }, [
         el('p', { class: 'member__name' }, [
           el('span', { class: `role-badge role-badge--${role}`, text: ROLE_LABEL[role] }),
-          el('span', { text: p.name }),
+          el('span', { text: entry.name ?? p.name }),
         ]),
         el('p', { class: 'member__action' }, actionText(role, entry)),
         el('p', { class: 'member__reason', text: `${reasonText(role, entry)}${regionNote(p)}` }),

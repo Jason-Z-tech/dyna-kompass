@@ -4,6 +4,8 @@ Zwei Seiten für Max-Kämpfe in **Pokémon GO**:
 
 - **Typ-Rangliste** (`index.html`): die stärksten Dynamax- und Gigadynamax-Angreifer für jeden der 18 Typen,
   mit Basiswerten, WP auf Level 40/50 und allen Attacken. Suche über alle Typen, Filter, Sortierung.
+  Die Suche verzeiht Schreibweisen: „riffex tiefform“, „Gigadynamax Riffex“ oder „G-Max Riffex“ finden die passenden
+  Formen; „und“, „oder“ und Kommas trennen mehrere Suchen („riffex hoch und tiefform“).
   Dazu die **Sonder-Angreifer** mit Marke „Spezial“: Zacian (König des Schwertes), Zamazenta (König des Schildes)
   und Endynalos dynamaximieren nicht, dürfen aber in Max-Kämpfe und kämpfen mit fester eigener Max-Attacke.
   Angekündigte Pokémon stehen schon in der Liste, markiert mit „Ab 24. Oktober“ und noch ohne Platz.
@@ -72,7 +74,8 @@ node scripts/build-data.mjs --refresh
 Das Skript:
 1. lädt die aktuellen Spieldaten (Game Master von [PokeMiners](https://github.com/PokeMiners/game_masters)),
 2. liest im [Pokémon GO Wiki](https://pokemongo.fandom.com/wiki/List_of_Dynamax_Pok%C3%A9mon_by_release_date), welche Dynamax-Pokémon erschienen oder **mit festem Datum angekündigt** sind (siehe [Angekündigte Pokémon](#angekündigte-pokémon)),
-3. holt deutsche Namen und Bilder von [PokeAPI](https://pokeapi.co),
+3. holt deutsche Namen und Bilder von [PokeAPI](https://pokeapi.co), die deutschen Namen der G-Max-Attacken
+   (z. B. „Giga-Voltschlag“) aus den Spieltexten von [holoholo-text](https://github.com/sora10pls/holoholo-text),
 4. verkleinert die Bilder auf 256 px (`scripts/resize-images.ps1`, nutzt Windows-Bordmittel),
 5. schreibt alles nach `data/pokemon-data.js`.
 
@@ -105,7 +108,8 @@ nur ein Vor-Ort-Event mit Ticket ist oder nur eine Weltregion. Die Seite soll ab
 bekommen können. Dafür gibt es oben in `scripts/build-data.mjs` die kleine, von Hand gepflegte Liste `RELEASE_NOTES`:
 
 - `releaseDate` ersetzt das Wiki-Datum durch den Tag, ab dem das Pokémon weltweit erhältlich ist
-  (Beispiel: Dialga laut Wiki 6.11.2026 in Sendai, weltweit erst am 14.11.2026).
+  (Beispiele: Dialga laut Wiki 6.11.2026 in Sendai, weltweit erst am 14.11.2026; Riffex laut Wiki 16.11.2024
+  in Fukuoka, weltweit erst am 23.11.2024).
 - `region` nennt die Weltregion, in der ein Pokémon ausschließlich erscheint. Die Seite zeigt dann
   „Nur Asien-Pazifik“ auf der Karte und einen Hinweis in den Team-Vorschlägen.
 

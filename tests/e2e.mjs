@@ -129,6 +129,9 @@ async function testRanking(page, vp) {
     check(s.cards.length > 0 && s.cards.length === s.countBadge, `${tag} Typ ${type}: ${s.cards.length} Karten, Zähler zeigt ${s.countBadge}`);
     check(isSorted(s.cards.map((c) => c.values[0])), `${tag} Typ ${type}: nicht nach Schaden sortiert`);
     checkUpcomingCards(s, facts, TODAY, `${tag} Typ ${type}:`);
+    // G-Max-Attacken tragen ihren deutschen Namen aus den Spieltexten ("Giga-Voltschlag", nicht "G-Max Stun Shock").
+    const english = s.cards.filter((c) => c.gmax && !/^Giga-\S/.test(c.maxMove));
+    check(!english.length, `${tag} Typ ${type}: G-Max-Attacke nicht deutsch: ${english.map((c) => `${c.name} "${c.maxMove}"`).join(', ')}`);
   }
 
   // Sonder-Angreifer (Max-Kampf ohne Dynamax): in "Alle" mit Marke "Spezial", fester Max-Attacke und Max-Schaden
@@ -208,6 +211,40 @@ async function testRanking(page, vp) {
   await page.click('#search-clear');
   s = await rankingState(page);
   check(!s.hitsVisible && (await page.eval(`document.getElementById('search').value`)) === '', `${tag} Suche leeren funktioniert nicht`);
+
+  // Die Suche verzeiht Schreibweisen: Form ohne Klammer und Bindestrich, Art-Wörter wie "G-Max", mehrere Suchen
+  // mit "und". Erwartet wird, was in den Daten steht – unabhängig von der Suche im Browser ausgerechnet.
+  const riffex = await page.eval(`window.POKEMON_DATA.pokemon.filter((p) => p.speciesId === 'TOXTRICITY').map((p) => ({ name: p.name, kind: p.kind, form: p.formId }))`);
+  const riffexNames = (pred) => riffex.filter(pred).map((p) => p.name).sort();
+  const hitNames = () => page.eval(`[...document.querySelectorAll('.search-hits__row')].map((r) => r.querySelector('.search-hits__name span').textContent).sort()`);
+  check(riffex.length === 4, `${tag} Riffex: ${riffex.length} statt 4 Einträge (Dynamax und Gigadynamax, Hoch- und Tief-Form)`);
+  for (const [query, pred] of [
+    ['riffex tiefform', (p) => p.form === 'TOXTRICITY_LOW_KEY'],
+    ['Riffex Hoch', (p) => p.form === 'TOXTRICITY_AMPED'],
+    ['riffex hoch-form', (p) => p.form === 'TOXTRICITY_AMPED'],
+    ['riffex hoch und tiefform', () => true],
+    ['G-Max Riffex', (p) => p.kind === 'gigantamax'],
+    ['gigadynamax riffex', (p) => p.kind === 'gigantamax'],
+    ['Toxtricity Low Key', (p) => p.form === 'TOXTRICITY_LOW_KEY'],
+  ]) {
+    await page.type('#search', query);
+    const got = await hitNames();
+    check(JSON.stringify(got) === JSON.stringify(riffexNames(pred)), `${tag} Suche "${query}": ${got.join(', ') || 'nichts'} statt ${riffexNames(pred).join(', ')}`);
+  }
+  // Die Treffer stehen ohne Scrollen im Bild – am Handy direkt unter dem Suchfeld.
+  const hitsBox = await page.eval(`(() => {
+    const hits = document.getElementById('search-hits').getBoundingClientRect();
+    const field = document.getElementById('search').getBoundingClientRect();
+    return { top: Math.round(hits.top), gap: Math.round(hits.top - field.bottom), height: innerHeight };
+  })()`);
+  check(hitsBox.top < hitsBox.height - 60 && (vp.width >= 1000 || hitsBox.gap <= 24),
+    `${tag} Suchtreffer nicht direkt sichtbar (oben bei ${hitsBox.top} von ${hitsBox.height} px, ${hitsBox.gap} px unter dem Suchfeld)`);
+  // Findet die Suche nichts, verweist die leere Liste nicht auf Treffer, die es nicht gibt.
+  await page.type('#search', 'xyzq');
+  const emptyText = await page.eval(`document.querySelector('#ranking .state')?.textContent ?? ''`);
+  check((await hitNames()).length === 0 && emptyText.includes('Kein Pokémon passt zu „xyzq“') && !emptyText.includes('Suchtreffern'),
+    `${tag} Suche ohne Treffer: Liste sagt "${emptyText}"`);
+  await page.click('#search-clear');
 
   // Karte auf- und zuklappen
   await page.click('.ranking__list > li:first-child summary');
@@ -300,6 +337,14 @@ async function testCounters(page, vp) {
         `${tag} Boss ${key}: Unendynamax-Endynalos als Konter vorgeschlagen`);
     }
   }
+  // Gleich gute Formen stehen zusammen im Team: Gigadynamax-Riffex greift Turtok mit derselben Attacke an, egal ob
+  // Hoch- oder Tief-Form – im Vorschlag steht deshalb beides, nie nur eine Form.
+  await page.click('label:has(input[name=tier][value="6"])');
+  await page.click('.boss-btn[data-boss="gigantamax-blastoise"]');
+  const riffexMembers = (await counterState(page)).teams.flat().map((m) => m.name).filter((n) => n.includes('Riffex'));
+  check(riffexMembers.length > 0 && riffexMembers.every((n) => n === 'Gigadynamax-Riffex (Hoch-Form oder Tief-Form)'),
+    `${tag} Gigadynamax-Turtok: Riffex im Team als ${riffexMembers.join(', ') || 'nicht dabei'}`);
+
   // Gegen Unendynamax-Endynalos ist Endynalos (Sonder-Angreifer mit Dynamax-Kanone) der beste Angreifer, mit Hinweis.
   await page.click('label:has(input[name=tier][value="6"])');
   await page.click('.boss-btn[data-boss="boss-eternatus_eternamax"]');
@@ -495,6 +540,16 @@ async function testUpcoming(page, vp) {
     }
   }
 
+  // Ein Team-Vorschlag kann gleich gute Formen zusammenfassen ("Gigadynamax-Riffex (Hoch-Form oder Tief-Form)").
+  // Vorgeschlagen werden nur erschienene Pokémon; das späteste Datum der Formen zählt.
+  const factOf = (name) => {
+    if (facts.has(name)) return facts.get(name);
+    const m = /^(.+) \((.+)\)$/.exec(name);
+    const forms = m ? m[2].split(' oder ').map((form) => facts.get(`${m[1]} (${form})`)) : [];
+    if (forms.length < 2 || forms.some((f) => !f)) throw new Error(`Unbekanntes Pokémon im Vorschlag: ${name}`);
+    return forms.reduce((a, b) => ((b.releaseDate ?? '') > (a.releaseDate ?? '') ? b : a));
+  };
+
   // Konter: alles, was die Seite vorschlägt – je Boss die Teams und die Listen aller drei Rollen-Tabs.
   const sweepCounters = async (bosses) => {
     const shown = [];
@@ -506,7 +561,7 @@ async function testUpcoming(page, vp) {
           ...[...document.querySelectorAll('.member')].map((m) => ({ kind: 'member', name: m.querySelector('.member__name span:last-child').textContent, note: m.querySelector('.member__reason').textContent })),
           ...[...document.querySelectorAll('#role-panel > li')].map((li) => ({ kind: 'row', name: li.querySelector('.row__name span:first-child').textContent, note: li.querySelector('.row__name .badge--region')?.textContent ?? '' })),
         ]`);
-        shown.push(...items.map((item) => ({ ...item, boss, tab, releaseDate: facts.get(item.name).releaseDate, region: facts.get(item.name).region })));
+        shown.push(...items.map((item) => ({ ...item, boss, tab, releaseDate: factOf(item.name).releaseDate, region: factOf(item.name).region })));
       }
     }
     return shown;
