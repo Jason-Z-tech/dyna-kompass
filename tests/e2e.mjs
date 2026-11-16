@@ -237,10 +237,13 @@ async function testRanking(page, vp) {
     const got = await hitNames();
     check(JSON.stringify(got) === JSON.stringify(riffexNames(pred)), `${tag} Suche "${query}": ${got.join(', ') || 'nichts'} statt ${riffexNames(pred).join(', ')}`);
   }
-  // Wörter passen nicht über die Grenze zwischen deutschem und englischem Namen ("Endyna" nicht in "…Vespiquen dynamax").
-  await page.type('#search', 'Endyna');
-  const endyna = await hitNames();
-  check(endyna.length > 0 && endyna.every((n) => n.includes('Endynalos')), `${tag} Suche "Endyna": ${endyna.join(', ')}`);
+  // Wörter passen nicht über Feldgrenzen ("Endyna" nicht in "…Vespiquen dynamax"), und beim Tippen eines Namens mit
+  // Bindestrich bleiben nur passende Treffer ("Gigadynamax-T" nicht alle Gigadynamax-Pokémon).
+  for (const [query, ok] of [['Endyna', (n) => n.includes('Endynalos')], ['Gigadynamaxg', (n) => n.startsWith('Gigadynamax-G')], ['Gigadynamax-T', (n) => n.startsWith('Gigadynamax-T')], ['Ho-O', (n) => /^(Ho-Oh|Hoothoot)$/.test(n)]]) {
+    await page.type('#search', query);
+    const got = await hitNames();
+    check(got.length > 0 && got.every(ok), `${tag} Suche "${query}": ${got.join(', ') || 'nichts'}`);
+  }
   // Die Treffer stehen ohne Scrollen im Bild – am Handy direkt unter dem Suchfeld.
   const hitsBox = await page.eval(`(() => {
     const hits = document.getElementById('search-hits').getBoundingClientRect();
@@ -249,6 +252,20 @@ async function testRanking(page, vp) {
   })()`);
   check(hitsBox.top < hitsBox.height - 60 && (vp.width >= 1000 || hitsBox.gap <= 24),
     `${tag} Suchtreffer nicht direkt sichtbar (oben bei ${hitsBox.top} von ${hitsBox.height} px, ${hitsBox.gap} px unter dem Suchfeld)`);
+  // Am Handy stehen die Treffer über den Filtern. Ändert ein Filter-Tipp ihre Zahl, bleibt der Filter unter dem Finger –
+  // auch ganz oben auf der Seite, wo Scrollen allein nicht ausgleichen kann.
+  if (vp.mobile) {
+    await page.type('#search', 'riffex');
+    await page.eval(`window.scrollTo(0, 0)`);
+    const kindTop = () => page.eval(`Math.round(document.getElementById('kind-filter').getBoundingClientRect().top)`);
+    const before = await kindTop();
+    // Klick ohne vorheriges Scrollen (page.click würde den Knopf erst in die Bildmitte holen).
+    await page.eval(`document.querySelector('input[name=kind][value=gigantamax]').click()`);
+    await new Promise((r) => setTimeout(r, 100));
+    const after = await kindTop();
+    check(Math.abs(after - before) <= 2, `${tag} Filter-Tipp ganz oben: Art-Filter springt von ${before} auf ${after} px`);
+    await page.eval(`document.querySelector('input[name=kind][value=all]').click()`);
+  }
   // Ein Tipp auf einen Treffer zeigt die Liste des Typs – auch am Handy, wo sie unter den Filtern liegt.
   await page.eval(`window.scrollTo(0, 0)`);
   await page.type('#search', 'riffex');

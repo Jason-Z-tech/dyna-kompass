@@ -371,7 +371,8 @@ async function loadMaxMoveNames(index) {
   const result = {};
   await mapLimited([...index.maxMoveByType], 6, async ([type, moveId]) => {
     const slug = index.moves.get(moveId).vfxName.replace(/_/g, '-');
-    const data = await cachedJson(`pokeapi/move-${slug}`, `${POKEAPI}/move/${slug}`).catch(() => null);
+    // Mit --refresh neu laden: An diesen Namen prüft gmaxMoveNamer die Zählung der Spieltexte.
+    const data = await cachedJson(`pokeapi/move-${slug}`, `${POKEAPI}/move/${slug}`, { refreshable: true }).catch(() => null);
     result[type] = germanName(data?.names) ?? titleCase(slug);
   });
   return result;

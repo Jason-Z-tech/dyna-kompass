@@ -33,7 +33,7 @@
   // Suche: Groß- und Kleinschreibung, Akzente, Klammern, Bindestriche und Leerzeichen spielen keine Rolle, jedes Wort
   // muss vorkommen ("riffex tiefform" findet "Riffex (Tief-Form)"). "und", "oder" und Kommas trennen mehrere Suchen
   // ("riffex hoch und tiefform"). Ganze Art-Wörter grenzen auf die Art ein: "Dynamax-Riffex", "G-Max Riffex".
-  const KIND_WORDS = { dynamax: 'dynamax', gigantamax: 'gigadynamax gigantamax gmax', special: 'spezial' };
+  const KIND_WORDS = { dynamax: ['dynamax'], gigantamax: ['gigadynamax', 'gigantamax', 'gmax'], special: ['spezial'] };
   const KIND_OF_WORD = { dynamax: 'dynamax', gigadynamax: 'gigantamax', gigantamax: 'gigantamax', gmax: 'gigantamax', spezial: 'special' };
   const squash = (text) => text.toLocaleLowerCase('de').normalize('NFD').replace(/\p{M}+/gu, '').replace(/[^\p{L}\p{N}]+/gu, '');
   const withGmax = (text) => text.toLocaleLowerCase('de').replace(/\bg[\s-]*max\b/g, 'gmax');
@@ -44,15 +44,23 @@
   // so nie über eine Feldgrenze (sonst fände "Endyna" auch "Honweisel Vespiquen dynamax").
   function searchText(pokemon) {
     if (!searchTexts.has(pokemon)) {
-      searchTexts.set(pokemon, [pokemon.name, pokemon.nameEn, KIND_WORDS[pokemon.kind] ?? ''].map((t) => squash(withGmax(t))).join(' '));
+      searchTexts.set(pokemon, [pokemon.name, pokemon.nameEn, ...(KIND_WORDS[pokemon.kind] ?? [])].map((t) => squash(withGmax(t))).join(' '));
     }
     return searchTexts.get(pokemon);
   }
 
+  // Suchwörter trennen an Leerzeichen; ein Wort mit Bindestrich bleibt zusammen ("Ho-Oh", "Hoch-Form"). Nur ein Art-Wort
+  // vorne zählt für sich ("Dynamax-Riffex", "G-Max-Riffex"); "Gigadynamax-…" bleibt ganz, denn so beginnen die Namen.
+  const KIND_PREFIX = /^(dynamax|gmax|gigantamax|spezial)[^\p{L}\p{M}\p{N}]+(.+)$/u;
+  const queryWords = (part) => withGmax(part).split(/\s+/).flatMap((token) => {
+    const m = KIND_PREFIX.exec(token);
+    return m ? [m[1], squash(m[2])] : [squash(token)];
+  }).filter(Boolean);
+
   function queryAlternatives() {
     if (parsed.query !== state.query) {
       const alternatives = state.query.toLocaleLowerCase('de').split(/\s+(?:und|oder)(?:\s+|$)|[,;/+&]/)
-        .map((part) => withGmax(part).split(/[^\p{L}\p{M}\p{N}]+/u).map(squash).filter(Boolean))
+        .map(queryWords)
         .filter((words) => words.length);
       parsed = { query: state.query, alternatives };
     }
@@ -277,6 +285,8 @@
   }
 
   function render() {
+    // Eine Höhe, die der Treffer-Kasten nur für einen Filter-Tipp behalten hat (siehe bindControls), gilt nicht weiter.
+    document.getElementById('search-hits').style.minHeight = '';
     renderMeta();
     renderTypeBar();
     renderKindCounts();
@@ -362,7 +372,12 @@
       if (eliteChanged) recomputeRoles();
       render();
       const shift = anchor ? anchor.getBoundingClientRect().top - before : 0;
-      if (shift) window.scrollBy({ top: shift, behavior: 'instant' });
+      if (!shift) return;
+      // Ganz oben auf der Seite reicht Scrollen nicht: Dann behält der Kasten so viel Höhe, dass nichts rutscht.
+      const lack = -(window.scrollY + shift);
+      window.scrollBy({ top: shift, behavior: 'instant' });
+      const box = document.getElementById('search-hits');
+      if (shift < 0 && lack > 0 && !box.hidden) box.style.minHeight = `${box.offsetHeight + lack}px`;
     });
     document.getElementById('search').addEventListener('input', () => { readControls(); render(); });
     document.getElementById('search-clear').addEventListener('click', () => {
